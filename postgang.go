@@ -273,9 +273,26 @@ func copyFile(sourcePath string, dest io.Writer) error {
 	return nil
 }
 
-func printVersionLine(key string, value string) {
-	fmt.Printf("%-12s: %s", key, value)
-	fmt.Println()
+func printVersionLine(wr io.Writer, key string, value string) {
+	fmt.Fprintf(wr, "%-12s: %s", key, value)
+	fmt.Fprintln(wr)
+}
+
+func printVersion(wr io.Writer) {
+	printVersionLine(wr, "Build date", buildstamp)
+	printVersionLine(wr, "Version", version)
+	fmt.Fprintln(wr)
+	commit, err := base64.RawStdEncoding.DecodeString(gitCommit)
+	if err == nil {
+		fmt.Fprint(wr, string(commit))
+	}
+
+}
+
+func die(msg interface{}) {
+	printVersion(os.Stderr)
+	fmt.Fprintln(os.Stderr)
+	log.Fatal(msg)
 }
 
 func main() {
@@ -289,36 +306,30 @@ func main() {
 	flag.StringVar(&outputPathArg, "output", "", "Path of output file")
 	flag.Parse()
 	if versionArg {
-		printVersionLine("Build date", buildstamp)
-		printVersionLine("Version", version)
-		fmt.Println()
-		commit, err := base64.RawStdEncoding.DecodeString(gitCommit)
-		if err == nil {
-			fmt.Print(string(commit))
-		}
+		printVersion(os.Stdout)
 		os.Exit(0)
 	}
 	postalCode, err := toPostalCode(codeArg)
 	if err != nil {
-		log.Fatal(err)
+		die(err)
 	}
 	wr := os.Stdout
 	ok := false
 	if outputPathArg != "" {
 		tmpFile, err := ioutil.TempFile("", "postgang-")
 		if err != nil {
-			log.Fatal(err)
+			die(err)
 		}
 		outputDestination, err := os.Create(outputPathArg)
 		if err != nil {
-			log.Fatal(err)
+			die(err)
 		}
 		wr = tmpFile
 		defer func() {
 			if ok {
 				err = copyFile(tmpFile.Name(), outputDestination)
 				if err != nil {
-					log.Fatalf("CopyFile failed: %s", err)
+					die(err)
 				}
 			}
 			os.Remove(tmpFile.Name())
@@ -332,10 +343,10 @@ func main() {
 	}
 	response, now, err := fetchData(postalCode, tz)
 	if err != nil {
-		log.Fatal(err)
+		die(err)
 	}
 	if response.IsStreetAddressReq {
-		log.Fatalf("Street address is required %+v", response)
+		die(fmt.Sprintf("Street address is required %+v", response))
 	}
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -343,11 +354,11 @@ func main() {
 	}
 	calendar := toCalendarT(now, response, hostname, postalCode)
 	if len(calendar.Events) == 0 {
-		log.Fatalf("No delivery days found, check postal code: %s", postalCode)
+		die(fmt.Sprintf("No delivery days found, check postal code: %s", postalCode))
 	}
 	_, err = ical.WriteIcal(wr, toVCalendar(calendar)...)
 	if err != nil {
-		log.Fatal(err)
+		die(err)
 	}
-	ok = true
+	ok = true // Used in closure
 }

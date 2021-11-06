@@ -205,7 +205,7 @@ func toCalendarT(now *time.Time, response *postenResponseT, hostname string, pos
 	return &calendarT{
 		Events:   buf,
 		Now:      *now,
-		ProdID:   "-//Aasan//Aasan Go Postgang v1.0.0//EN",
+		ProdID:   fmt.Sprintf("-//Aasan//Aasan Go Postgang %s//EN", version),
 		Hostname: hostname,
 	}
 }

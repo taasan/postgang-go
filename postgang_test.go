@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -46,7 +47,7 @@ func now() *time.Time {
 }
 
 func prodID() string {
-	return "-//Aasan//Aasan Go Postgang v1.0.0//EN"
+	return fmt.Sprintf("-//Aasan//Aasan Go Postgang %s//EN", version)
 }
 
 func postalCode() *postalCodeT {

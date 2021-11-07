@@ -1,57 +1,71 @@
 package ical
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 )
 
 type ContentPrinter struct {
-	Writer            *bufio.Writer
+	writer            PrintWriter
 	currentLineLength int
 	err               error
 	bytesWritten      int
+	errorsAreFatal    bool
 }
 
-func (p *ContentPrinter) printLine(value fmt.Stringer) (int, error) {
+type PrintWriter interface {
+	io.StringWriter
+	WriteRune(r rune) (n int, err error)
+}
+
+func NewContentPrinter(wr PrintWriter, errorsAreFatal bool) *ContentPrinter {
+	return &ContentPrinter{writer: wr, errorsAreFatal: errorsAreFatal}
+}
+
+func (p *ContentPrinter) printLn() *ContentPrinter {
+	n, err := p.writer.WriteString("\r\n")
+	p.bytesWritten += n
+	p.err = err
+	if err == nil {
+		p.currentLineLength = 0
+	} else if p.errorsAreFatal {
+		log.Fatal(err)
+	}
+	return p
+}
+
+func (p *ContentPrinter) print(value string) *ContentPrinter {
 	if p.err != nil {
-		return 0, p.err
+		return p
 	}
-	if p.currentLineLength != 0 {
-		p.err = errors.New("internal error: p.currentLineLength != 0")
-		return p.bytesWritten, p.err
-	}
-	const CRLF = "\r\n"
 	const CRLFS = "\r\n "
 	bytesWritten := 0
-	reader := strings.NewReader(strings.ReplaceAll(value.String(), "\n", "\\n"))
+	reader := strings.NewReader(strings.ReplaceAll(value, "\n", "\\n"))
 	var n int
 	var perror error
-	doReturn := func() (int, error) {
+	doReturn := func() *ContentPrinter {
 		p.err = perror
 		p.bytesWritten = bytesWritten
-		return bytesWritten, perror
+		if p.err != nil && p.errorsAreFatal {
+			log.Panic(p.err)
+		}
+		return p
 	}
 	for {
 		if r, bytesRead, readErr := reader.ReadRune(); readErr != nil {
-			if readErr == io.EOF {
-				n, perror = p.Writer.WriteString(CRLF)
-				bytesWritten += n
-				p.currentLineLength = 0
-			}
 			return doReturn()
 		} else {
 			if bytesRead+p.currentLineLength > maxLineLen {
-				n, perror = p.Writer.WriteString(CRLFS)
+				n, perror = p.writer.WriteString(CRLFS)
 				bytesWritten += n
 				if perror != nil {
 					return doReturn()
 				}
 				p.currentLineLength = 1
 			}
-			n, perror = p.Writer.WriteRune(r)
+			n, perror = p.writer.WriteRune(r)
 			bytesWritten += bytesRead
 			p.currentLineLength += n
 		}
@@ -73,34 +87,31 @@ func escape(s string) string {
 	return sb.String()
 }
 
-func (f *Attribute) String() string {
-	var sb strings.Builder
-	sb.WriteString(escape(f.Name))
-	sb.WriteRune('=')
-	sb.WriteString(escape(f.Value))
-	return sb.String()
+func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
+	p.print(escape(a.Name))
+	p.print("=")
+	p.print(escape(a.Value))
+	return p
 }
 
-func (f *icalField) String() string {
-	var sb strings.Builder
-	sb.WriteString(escape(f.name))
+func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
+	p.print(escape(f.name))
 	for _, a := range f.attributes {
-		sb.WriteByte(';')
-		sb.WriteString(escape(a.Name))
-		sb.WriteByte('=')
-		sb.WriteString(escape(a.Value))
+		p.print(";").
+			printAttribute(a)
 	}
-	sb.WriteByte(':')
-	sb.WriteString(escape(f.value))
-
-	return sb.String()
+	p.print(":").
+		print(escape(f.value)).
+		printLn()
+	return p
 }
 
-func Print(p *ContentPrinter, section *Section) (int, error) {
+func (section *Section) Print(p *ContentPrinter) (int, error) {
 	for _, field := range section.getFields() {
-		n, err := p.printLine(field)
-		if err != nil {
-			return n, err
+		var before = p.bytesWritten
+		p = p.printField(field)
+		if p.err != nil {
+			return p.bytesWritten - before, p.err
 		}
 	}
 	return p.bytesWritten, p.err

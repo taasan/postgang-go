@@ -368,7 +368,7 @@ func main() {
 	buf := bufio.NewWriter(wr)
 	defer buf.Flush()
 
-	_, err = ical.Print(&ical.ContentPrinter{Writer: buf}, toVCalendar(calendar))
+	_, err = toVCalendar(calendar).Print(ical.NewContentPrinter(buf, true))
 	if err != nil {
 		die(err)
 	}

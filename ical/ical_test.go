@@ -1,8 +1,19 @@
 package ical
 
 import (
+	"bufio"
+	"strings"
 	"testing"
 )
+
+func (f *icalField) String() string {
+	var sb strings.Builder
+	wr := bufio.NewWriter(&sb)
+	p := NewContentPrinter(wr, true)
+	p.printField(f)
+	wr.Flush()
+	return sb.String()
+}
 
 func TestIcalFieldStringWithAttributes(t *testing.T) {
 	f := &icalField{

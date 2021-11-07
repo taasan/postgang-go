@@ -228,7 +228,7 @@ func toVCalendar(cal *calendarT) *ical.Section {
 	for i, x := range cal.Events {
 		buf[i] = toVEvent(x, cal.Hostname)
 	}
-	return ical.Calendar(ical.NewVCalendar(cal.ProdID, buf))
+	return ical.Calendar(ical.NewVCalendar(cal.ProdID, cal.Now, buf...))
 }
 
 func toVEvent(event eventT, hostname string) *ical.VEvent {
@@ -368,7 +368,7 @@ func main() {
 	buf := bufio.NewWriter(wr)
 	defer buf.Flush()
 
-	_, err = toVCalendar(calendar).Print(ical.NewContentPrinter(buf, true))
+	err = toVCalendar(calendar).Print(ical.NewContentPrinter(buf, true))
 	if err != nil {
 		die(err)
 	}

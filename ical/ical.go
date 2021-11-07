@@ -16,12 +16,13 @@ type VEvent struct {
 }
 
 type VCalendar struct {
-	ProdID string
-	Events []*VEvent
+	ProdID    string
+	Events    []*VEvent
+	Timestamp *time.Time
 }
 
-func NewVCalendar(prodID string, events []*VEvent) *VCalendar {
-	return &VCalendar{ProdID: prodID, Events: events}
+func NewVCalendar(prodID string, timestamp *time.Time, events ...*VEvent) *VCalendar {
+	return &VCalendar{ProdID: prodID, Events: events, Timestamp: timestamp}
 }
 
 type icalField struct {
@@ -134,9 +135,8 @@ func Calendar(cal *VCalendar) *Section {
 		CalScale(),
 		Method(),
 	}
-	now := time.Now()
 	for _, x := range cal.Events {
-		e := event(x, &now)
+		e := event(x, cal.Timestamp)
 		fields = append(fields, e.getFields()...)
 	}
 	return section("VCALENDAR", Fields{Fields: fields})

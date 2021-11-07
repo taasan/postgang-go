@@ -1,7 +1,9 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"testing"
 	"time"
@@ -77,7 +79,7 @@ func fetchDataFixture() (*postenResponseT, *time.Time) {
 	}, now()
 }
 
-func calendarTFixture() calendarT {
+func calendarTFixture() *calendarT {
 	timezone := now().Location()
 	events := []eventT{
 		event(time.Date(2021, 12, 28, 0, 0, 0, 0, timezone)),
@@ -88,7 +90,7 @@ func calendarTFixture() calendarT {
 		event(time.Date(2022, 1, 2, 0, 0, 0, 0, timezone)),
 		event(time.Date(2022, 1, 3, 0, 0, 0, 0, timezone)),
 	}
-	return calendarT{
+	return &calendarT{
 		Now:      now(),
 		ProdID:   prodID(),
 		Events:   events,
@@ -100,8 +102,29 @@ func TestToCalendarT(t *testing.T) {
 	resp, now := fetchDataFixture()
 	hostname := "test"
 	calendar := *toCalendarT(now, resp, hostname, postalCode())
-	expectedCalendar := calendarTFixture()
+	expectedCalendar := *calendarTFixture()
 	if !reflect.DeepEqual(calendar, expectedCalendar) {
-		t.Fatalf("%s != %s", calendar, expectedCalendar)
+		t.Fatalf("\n%s\n\n!=\n\n%s", calendar, expectedCalendar)
+	}
+}
+
+func TestPrint(t *testing.T) {
+	cal := toVCalendar(calendarTFixture())
+	res := cal.String()
+	fixtureName := "test/fixture.ics"
+	icsFixture, err := ioutil.ReadFile(fixtureName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != string(icsFixture) {
+		tmp, err := ioutil.TempFile("", "postgang-*.ics")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tmp.Close()
+		if _, err := tmp.WriteString(res); err != nil {
+			t.Fatal(err)
+		}
+		t.Fatalf("ICS mismatch, see\ndiff -u %s %s", fixtureName, tmp.Name())
 	}
 }

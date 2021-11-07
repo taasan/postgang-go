@@ -1,0 +1,69 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Aasan//Aasan Go Postgang 6666@development//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:DeliveryDay {day = tirsdag\, dayNum = 28\, month = desember}@test
+URL:https://www.posten.no/levering-av-post/
+SUMMARY:Posten kommer tirsdag 28.
+TRANSP:TRANSPARENT
+DTSTART;VALUE=DATE:20211228
+DTEND;VALUE=DATE:20211229
+DTSTAMP:20211228T233655Z
+END:VEVENT
+BEGIN:VEVENT
+UID:DeliveryDay {day = onsdag\, dayNum = 29\, month = desember}@test
+URL:https://www.posten.no/levering-av-post/
+SUMMARY:Posten kommer onsdag 29.
+TRANSP:TRANSPARENT
+DTSTART;VALUE=DATE:20211229
+DTEND;VALUE=DATE:20211230
+DTSTAMP:20211228T233655Z
+END:VEVENT
+BEGIN:VEVENT
+UID:DeliveryDay {day = torsdag\, dayNum = 30\, month = desember}@test
+URL:https://www.posten.no/levering-av-post/
+SUMMARY:Posten kommer torsdag 30.
+TRANSP:TRANSPARENT
+DTSTART;VALUE=DATE:20211230
+DTEND;VALUE=DATE:20211231
+DTSTAMP:20211228T233655Z
+END:VEVENT
+BEGIN:VEVENT
+UID:DeliveryDay {day = fredag\, dayNum = 31\, month = desember}@test
+URL:https://www.posten.no/levering-av-post/
+SUMMARY:Posten kommer fredag 31.
+TRANSP:TRANSPARENT
+DTSTART;VALUE=DATE:20211231
+DTEND;VALUE=DATE:20220101
+DTSTAMP:20211228T233655Z
+END:VEVENT
+BEGIN:VEVENT
+UID:DeliveryDay {day = lørdag\, dayNum = 1\, month = januar}@test
+URL:https://www.posten.no/levering-av-post/
+SUMMARY:Posten kommer lørdag 1.
+TRANSP:TRANSPARENT
+DTSTART;VALUE=DATE:20220101
+DTEND;VALUE=DATE:20220102
+DTSTAMP:20211228T233655Z
+END:VEVENT
+BEGIN:VEVENT
+UID:DeliveryDay {day = søndag\, dayNum = 2\, month = januar}@test
+URL:https://www.posten.no/levering-av-post/
+SUMMARY:Posten kommer søndag 2.
+TRANSP:TRANSPARENT
+DTSTART;VALUE=DATE:20220102
+DTEND;VALUE=DATE:20220103
+DTSTAMP:20211228T233655Z
+END:VEVENT
+BEGIN:VEVENT
+UID:DeliveryDay {day = mandag\, dayNum = 3\, month = januar}@test
+URL:https://www.posten.no/levering-av-post/
+SUMMARY:Posten kommer mandag 3.
+TRANSP:TRANSPARENT
+DTSTART;VALUE=DATE:20220103
+DTEND;VALUE=DATE:20220104
+DTSTAMP:20211228T233655Z
+END:VEVENT
+END:VCALENDAR

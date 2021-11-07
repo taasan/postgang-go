@@ -106,13 +106,18 @@ func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
 	return p
 }
 
-func (section *Section) Print(p *ContentPrinter) (int, error) {
+func (section *Section) Print(p *ContentPrinter) error {
 	for _, field := range section.getFields() {
-		var before = p.bytesWritten
 		p = p.printField(field)
 		if p.err != nil {
-			return p.bytesWritten - before, p.err
+			return p.err
 		}
 	}
-	return p.bytesWritten, p.err
+	return p.err
+}
+
+func (section *Section) String() string {
+	var sb = &strings.Builder{}
+	section.Print(NewContentPrinter(sb, true))
+	return sb.String()
 }

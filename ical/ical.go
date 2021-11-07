@@ -41,7 +41,7 @@ type Section struct {
 	content    icalContent
 }
 
-func (section Section) getFields() []*icalField {
+func (section *Section) getFields() []*icalField {
 	buf := []*icalField{field("BEGIN", section.name, section.attributes...)}
 	buf = append(buf, section.content.getFields()...)
 	buf = append(buf, field("END", section.name))
@@ -52,7 +52,7 @@ type Fields struct {
 	Fields []*icalField
 }
 
-func (fields Fields) getFields() []*icalField {
+func (fields *Fields) getFields() []*icalField {
 	return fields.Fields
 }
 
@@ -139,7 +139,7 @@ func Calendar(cal *VCalendar) *Section {
 		e := event(x, cal.Timestamp)
 		fields = append(fields, e.getFields()...)
 	}
-	return section("VCALENDAR", Fields{Fields: fields})
+	return section("VCALENDAR", &Fields{Fields: fields})
 }
 
 func event(event *VEvent, now *time.Time) *Section {

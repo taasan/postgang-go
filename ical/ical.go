@@ -159,23 +159,6 @@ func event(event *VEvent, now *time.Time) *Section {
 	return section("VEVENT", fields)
 }
 
-func Event(uid string, url *url.URL, summary string, date *time.Time, now *time.Time) *Section {
-	dtEnd := date.AddDate(0, 0, 1)
-	fields := &Fields{
-		Fields: []*icalField{
-			UID(uid),
-			URL(url),
-			Summary(summary),
-			Transp(),
-			DtStart(date),
-			DtEnd(&dtEnd),
-			DtStamp(now),
-		},
-	}
-
-	return section("VEVENT", fields)
-}
-
 func section(name string, content icalContent, attributes ...*Attribute) *Section {
 	return &Section{
 		name:       name,

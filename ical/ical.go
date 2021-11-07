@@ -2,18 +2,57 @@ package ical
 
 import (
 	"fmt"
-	"io"
-	"strings"
+	"net/url"
 	"time"
-	"unicode/utf8"
 )
 
 const maxLineLen = 75
 
-type Field struct {
-	Name       string
-	Attributes []Attribute
-	Value      string
+type VEvent struct {
+	UID     string
+	URL     *url.URL
+	Summary string
+	Date    *time.Time
+}
+
+type VCalendar struct {
+	ProdID string
+	Events []*VEvent
+}
+
+func NewVCalendar(prodID string, events []*VEvent) *VCalendar {
+	return &VCalendar{ProdID: prodID, Events: events}
+}
+
+type icalField struct {
+	name       string
+	attributes []*Attribute
+	value      string
+}
+
+type icalContent interface {
+	getFields() []*icalField
+}
+
+type Section struct {
+	name       string
+	attributes []*Attribute
+	content    icalContent
+}
+
+func (section Section) getFields() []*icalField {
+	buf := []*icalField{field("BEGIN", section.name, section.attributes...)}
+	buf = append(buf, section.content.getFields()...)
+	buf = append(buf, field("END", section.name))
+	return buf
+}
+
+type Fields struct {
+	Fields []*icalField
+}
+
+func (fields Fields) getFields() []*icalField {
+	return fields.Fields
 }
 
 type Attribute struct {
@@ -21,118 +60,126 @@ type Attribute struct {
 	Value string
 }
 
-func escapeChar(c rune) string {
-	if c == '\\' || c == ';' || c == ',' {
-		return fmt.Sprintf("\\%c", c)
-	}
-	if c == '\n' {
-		return "\\n"
-	}
-	return fmt.Sprintf("%c", c)
-}
-
-func escape(s string) string {
-	var sb strings.Builder
-	for _, c := range s {
-		sb.WriteString(escapeChar(c))
-	}
-	return sb.String()
-}
-
-func (f *Attribute) String() string {
-	var sb strings.Builder
-	sb.WriteString(escape(f.Name))
-	sb.WriteRune('=')
-	sb.WriteString(escape(f.Value))
-	return sb.String()
-}
-
-func splitLine(line string) []string {
-	splits := []string{}
-	var l, r int
-	for l, r = 0, maxLineLen; r < len(line); l, r = r, r+maxLineLen {
-		for !utf8.RuneStart(line[r]) {
-			r--
-		}
-		splits = append(splits, line[l:r])
-	}
-	splits = append(splits, line[l:])
-	return splits
-}
-
-func (f Field) String() string {
-	var sb strings.Builder
-	sb.WriteString(escape(f.Name))
-	for _, a := range f.Attributes {
-		sb.WriteByte(';')
-		sb.WriteString(escape(a.Name))
-		sb.WriteByte('=')
-		sb.WriteString(escape(a.Value))
-	}
-	sb.WriteByte(':')
-	sb.WriteString(escape(f.Value))
-	if len(sb.String()) > maxLineLen {
-		lines := splitLine(sb.String())
-		sb.Reset()
-		sb.WriteString(lines[0])
-		sb.WriteString("\r\n")
-		for _, l := range lines[1:] {
-			sb.WriteByte(' ')
-			sb.WriteString(l)
-			sb.WriteString("\r\n")
-		}
-	} else {
-		sb.WriteString("\r\n")
-	}
-	return sb.String()
-}
-
-func WriteIcal(wr io.StringWriter, fields ...Field) (int, error) {
-	var written = 0
-	var err error
-	for _, x := range fields {
-		var n, err = wr.WriteString(x.String())
-		written += n
-		if err != nil {
-			return written, err
-		}
-	}
-	return written, err
-}
-
-func dateAttribute() Attribute {
-	return Attribute{
+func dateAttribute() *Attribute {
+	return &Attribute{
 		Name:  "VALUE",
 		Value: "DATE",
 	}
 }
 
-func New(name string, value interface{}, attributes ...Attribute) Field {
-	return Field{
-		Name:       name,
-		Value:      fmt.Sprint(value),
-		Attributes: attributes,
+func field(name string, value string, attributes ...*Attribute) *icalField {
+	return &icalField{
+		name:       name,
+		value:      fmt.Sprint(value),
+		attributes: attributes,
 	}
 }
 
-func dateField(name string, value time.Time) Field {
-	return New(name, value.Format("20060102"), dateAttribute())
+func urlField(name string, value *url.URL) *icalField {
+	return field(name, value.String())
 }
 
-func DtStart(value time.Time) Field {
+func dateField(name string, value *time.Time) *icalField {
+	return field(name, value.Format("20060102"), dateAttribute())
+}
+
+func DtStart(value *time.Time) *icalField {
 	return dateField("DTSTART", value)
 }
 
-func DtEnd(value time.Time) Field {
+func DtEnd(value *time.Time) *icalField {
 	return dateField("DTEND", value)
 }
 
-func DtStamp(value time.Time) Field {
-	return New("DTSTAMP", value.Format("20060102T150405Z"))
+func DtStamp(value *time.Time) *icalField {
+	return field("DTSTAMP", value.Format("20060102T150405Z"))
 }
 
-func Section(name string, fields []Field, attributes ...Attribute) []Field {
-	buf := []Field{New("BEGIN", name, attributes...)}
-	buf = append(buf, fields...)
-	return append(buf, New("END", name))
+func Version() *icalField {
+	return field("VERSION", "2.0")
+}
+
+func ProdID(value string) *icalField {
+	return field("PRODID", value)
+}
+
+func CalScale() *icalField {
+	return field("CALSCALE", "GREGORIAN")
+}
+
+func Method() *icalField {
+	return field("METHOD", "PUBLISH")
+}
+
+func Transp() *icalField {
+	return field("TRANSP", "TRANSPARENT")
+}
+
+func UID(value string) *icalField {
+	return field("UID", value)
+}
+
+func URL(value *url.URL) *icalField {
+	return urlField("URL", value)
+}
+
+func Summary(value string) *icalField {
+	return field("SUMMARY", value)
+}
+
+func Calendar(cal *VCalendar) *Section {
+	fields := []*icalField{
+		Version(),
+		ProdID(cal.ProdID),
+		CalScale(),
+		Method(),
+	}
+	now := time.Now()
+	for _, x := range cal.Events {
+		e := event(x, &now)
+		fields = append(fields, e.getFields()...)
+	}
+	return section("VCALENDAR", Fields{Fields: fields})
+}
+
+func event(event *VEvent, now *time.Time) *Section {
+	dtEnd := event.Date.AddDate(0, 0, 1)
+	fields := &Fields{
+		Fields: []*icalField{
+			UID(event.UID),
+			URL(event.URL),
+			Summary(event.Summary),
+			Transp(),
+			DtStart(event.Date),
+			DtEnd(&dtEnd),
+			DtStamp(now),
+		},
+	}
+
+	return section("VEVENT", fields)
+}
+
+func Event(uid string, url *url.URL, summary string, date *time.Time, now *time.Time) *Section {
+	dtEnd := date.AddDate(0, 0, 1)
+	fields := &Fields{
+		Fields: []*icalField{
+			UID(uid),
+			URL(url),
+			Summary(summary),
+			Transp(),
+			DtStart(date),
+			DtEnd(&dtEnd),
+			DtStamp(now),
+		},
+	}
+
+	return section("VEVENT", fields)
+}
+
+func section(name string, content icalContent, attributes ...*Attribute) *Section {
+	return &Section{
+		name:       name,
+		content:    content,
+		attributes: attributes,
+	}
 }

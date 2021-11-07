@@ -22,6 +22,7 @@ test:
 
 .PHONY: lint
 lint:
+	$(GO) vet
 	$(GOLINT)
 	set -e;\
 	output=$$(git ls-files -z '*.go' | xargs -0 gofmt -d);\

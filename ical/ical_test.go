@@ -5,12 +5,12 @@ import (
 )
 
 func TestIcalFieldStringWithAttributes(t *testing.T) {
-	f := &Field{
-		Name: "SUMMARY",
-		Attributes: []Attribute{
+	f := &icalField{
+		name: "SUMMARY",
+		attributes: []*Attribute{
 			{Name: "X-A", Value: "12"},
 		},
-		Value: "Abba 12;\nHep stars 11",
+		value: "Abba 12;\nHep stars 11",
 	}
 	if f.String() != "SUMMARY;X-A=12:Abba 12\\;\\nHep stars 11\r\n" {
 		t.Errorf("%s", f.String())
@@ -18,10 +18,10 @@ func TestIcalFieldStringWithAttributes(t *testing.T) {
 }
 
 func TestIcalFieldStringWithoutAttributes(t *testing.T) {
-	f := &Field{
-		Name:       "SUMMARY",
-		Attributes: []Attribute{},
-		Value:      "Abba 12;\nHep stars 11",
+	f := &icalField{
+		name:       "SUMMARY",
+		attributes: []*Attribute{},
+		value:      "Abba 12;\nHep stars 11",
 	}
 	if f.String() != "SUMMARY:Abba 12\\;\\nHep stars 11\r\n" {
 		t.Errorf("%s", f.String())

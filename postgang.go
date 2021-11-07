@@ -4,6 +4,7 @@ Lag kalender fra postgangdata
 package main
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -12,6 +13,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -32,6 +34,16 @@ type deliveryDayT struct {
 	DayNum     int
 	Month      time.Month
 	Timezone   time.Location
+}
+
+var baseURL = parseURL("https://www.posten.no/levering-av-post/")
+
+func parseURL(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return u
 }
 
 var version = "development"
@@ -103,10 +115,12 @@ var deliverydayRe = func() *regexp.Regexp {
 
 }()
 
-const urlTemplate = "https://www.posten.no/levering-av-post/_/component/main/1/leftRegion/1?postCode=%s"
+func dataURL(code postalCodeT) string {
+	return fmt.Sprintf("%s/_/component/main/1/leftRegion/1?postCode=%s", baseURL, code)
+}
 
 func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenResponseT, *time.Time, error) {
-	url := fmt.Sprintf(urlTemplate, postalCode)
+	url := dataURL(*postalCode)
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -181,7 +195,7 @@ type eventT struct {
 }
 
 type calendarT struct {
-	Now      time.Time
+	Now      *time.Time
 	Events   []eventT
 	ProdID   string
 	Hostname string
@@ -204,44 +218,36 @@ func toCalendarT(now *time.Time, response *postenResponseT, hostname string, pos
 	}
 	return &calendarT{
 		Events:   buf,
-		Now:      *now,
-		ProdID:   fmt.Sprintf("-//Aasan//Aasan Go Postgang %s//EN", version),
+		Now:      now,
+		ProdID:   fmt.Sprintf("-//Aasan//Aasan Go Postgang %s@%s//EN", postalCode, version),
 		Hostname: hostname,
 	}
 }
 
-func toVCalendar(cal *calendarT) []ical.Field {
-	buf := []ical.Field{
-		ical.New("VERSION", "2.0"),
-		ical.New("PRODID", cal.ProdID),
-		ical.New("CALSCALE", "GREGORIAN"),
-		ical.New("METHOD", "PUBLISH"),
+func toVCalendar(cal *calendarT) *ical.Section {
+	buf := make([]*ical.VEvent, len(cal.Events))
+	for i, x := range cal.Events {
+		buf[i] = toVEvent(x, cal.Hostname, cal.Now)
 	}
-	for _, x := range cal.Events {
-		buf = append(buf, toVEvent(x, cal.Hostname, cal.Now)...)
-	}
-	return ical.Section("VCALENDAR", buf)
+	return ical.Calendar(ical.NewVCalendar(cal.ProdID, buf))
 }
 
-func toVEvent(event eventT, hostname string, now time.Time) []ical.Field {
-	fields := []ical.Field{
-		{
-			Name:  "UID",
-			Value: fmt.Sprintf("DeliveryDay %s (%s) @%s", event.Date.Format("20060102"), event.PostalCode, hostname),
-		},
-		{
-			Name:  "ORGANIZER",
-			Value: fmt.Sprintf("Posten %s", event.PostalCode),
-		},
-		{
-			Name:  "SUMMARY",
-			Value: fmt.Sprintf("Posten kommer %s %d.", weekdayNames[event.Date.Weekday()], event.Date.Day()),
-		},
-		ical.DtStart(event.Date),
-		ical.DtEnd(event.Date.AddDate(0, 0, 1)),
-		ical.DtStamp(now),
+func toVEvent(event eventT, hostname string, now *time.Time) *ical.VEvent {
+	dayName := weekdayNames[event.Date.Weekday()]
+	dayNum := event.Date.Day()
+	monthName := monthNames[event.Date.Month()]
+	return &ical.VEvent{
+		UID: fmt.Sprintf(
+			"DeliveryDay {day = %s, dayNum = %d, month = %s}@%s",
+			dayName,
+			dayNum,
+			monthName,
+			hostname,
+		),
+		URL:     baseURL,
+		Summary: fmt.Sprintf("Posten kommer %s %d.", dayName, dayNum),
+		Date:    &event.Date,
 	}
-	return ical.Section("VEVENT", fields)
 }
 
 type postalCodeT struct {
@@ -356,7 +362,10 @@ func main() {
 	if len(calendar.Events) == 0 {
 		die(fmt.Sprintf("No delivery days found, check postal code: %s", postalCode))
 	}
-	_, err = ical.WriteIcal(wr, toVCalendar(calendar)...)
+	buf := bufio.NewWriter(wr)
+	defer buf.Flush()
+
+	_, err = ical.Print(&ical.ContentPrinter{Writer: buf}, toVCalendar(calendar))
 	if err != nil {
 		die(err)
 	}

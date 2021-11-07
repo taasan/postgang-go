@@ -47,7 +47,7 @@ func now() *time.Time {
 }
 
 func prodID() string {
-	return fmt.Sprintf("-//Aasan//Aasan Go Postgang %s//EN", version)
+	return fmt.Sprintf("-//Aasan//Aasan Go Postgang %s@%s//EN", postalCode(), version)
 }
 
 func postalCode() *postalCodeT {
@@ -89,7 +89,7 @@ func calendarTFixture() calendarT {
 		event(time.Date(2022, 1, 3, 0, 0, 0, 0, timezone)),
 	}
 	return calendarT{
-		Now:      *now(),
+		Now:      now(),
 		ProdID:   prodID(),
 		Events:   events,
 		Hostname: "test",

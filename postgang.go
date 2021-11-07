@@ -39,15 +39,13 @@ type deliveryDayT struct {
 const maxPostalCode = 9999
 const meraker = 7530
 
-var baseURL = parseURL("https://www.posten.no/levering-av-post/")
-
-func parseURL(s string) *url.URL {
-	u, err := url.Parse(s)
+var baseURL = func() *url.URL {
+	u, err := url.Parse("https://www.posten.no/levering-av-post/")
 	if err != nil {
 		log.Fatal(err)
 	}
 	return u
-}
+}()
 
 var version = "development"
 var buildstamp = ""
@@ -115,7 +113,6 @@ var deliverydayRe = func() *regexp.Regexp {
 	}
 	days := strings.Join(buf, "|")
 	return regexp.MustCompile(fmt.Sprintf(`^(?:i (?:dag|morgen) )?(?P<dayname>%s) (?P<day>\d+)\. (?P<month>%s)$`, days, months))
-
 }()
 
 func dataURL(code postalCodeT) string {

@@ -29,12 +29,15 @@ type postenResponseT struct {
 }
 
 type deliveryDayT struct {
-	PostalCode postalCodeT
+	PostalCode *postalCodeT
 	Day        time.Weekday
 	DayNum     int
 	Month      time.Month
-	Timezone   time.Location
+	Timezone   *time.Location
 }
+
+const maxPostalCode = 9999
+const meraker = 7530
 
 var baseURL = parseURL("https://www.posten.no/levering-av-post/")
 
@@ -120,9 +123,9 @@ func dataURL(code postalCodeT) string {
 }
 
 func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenResponseT, *time.Time, error) {
-	url := dataURL(*postalCode)
+	u := dataURL(*postalCode)
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,7 +139,6 @@ func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenRespons
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, fmt.Errorf("got HTTP error: %s", resp.Status)
-
 	}
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -159,7 +161,7 @@ func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenRespons
 	return &data, &now, nil
 }
 
-func parseDeliveryDay(s string, tz time.Location, postalCode *postalCodeT) *deliveryDayT {
+func parseDeliveryDay(s string, tz *time.Location, postalCode *postalCodeT) *deliveryDayT {
 	match := deliverydayRe.FindStringSubmatch(s)
 	if match == nil {
 		log.Fatal("No match")
@@ -170,7 +172,7 @@ func parseDeliveryDay(s string, tz time.Location, postalCode *postalCodeT) *deli
 		DayNum:     dayNum,
 		Month:      months[match[3]],
 		Timezone:   tz,
-		PostalCode: *postalCode,
+		PostalCode: postalCode,
 	}
 }
 
@@ -190,8 +192,8 @@ func (day *deliveryDayT) toDate(now *time.Time) *time.Time {
 }
 
 type eventT struct {
-	Date       time.Time
-	PostalCode postalCodeT
+	Date       *time.Time
+	PostalCode *postalCodeT
 }
 
 type calendarT struct {
@@ -202,7 +204,7 @@ type calendarT struct {
 }
 
 func (day *deliveryDayT) toEventT(now *time.Time) eventT {
-	date := (*day.toDate(now))
+	date := day.toDate(now)
 
 	data := eventT{
 		Date:       date,
@@ -214,7 +216,7 @@ func (day *deliveryDayT) toEventT(now *time.Time) eventT {
 func toCalendarT(now *time.Time, response *postenResponseT, hostname string, postalCode *postalCodeT) *calendarT {
 	buf := make([]eventT, len(response.NextDeliveryDays))
 	for i, x := range response.NextDeliveryDays {
-		buf[i] = parseDeliveryDay(x, *now.Location(), postalCode).toEventT(now)
+		buf[i] = parseDeliveryDay(x, now.Location(), postalCode).toEventT(now)
 	}
 	return &calendarT{
 		Events:   buf,
@@ -227,12 +229,12 @@ func toCalendarT(now *time.Time, response *postenResponseT, hostname string, pos
 func toVCalendar(cal *calendarT) *ical.Section {
 	buf := make([]*ical.VEvent, len(cal.Events))
 	for i, x := range cal.Events {
-		buf[i] = toVEvent(x, cal.Hostname, cal.Now)
+		buf[i] = toVEvent(x, cal.Hostname)
 	}
 	return ical.Calendar(ical.NewVCalendar(cal.ProdID, buf))
 }
 
-func toVEvent(event eventT, hostname string, now *time.Time) *ical.VEvent {
+func toVEvent(event eventT, hostname string) *ical.VEvent {
 	dayName := weekdayNames[event.Date.Weekday()]
 	dayNum := event.Date.Day()
 	monthName := monthNames[event.Date.Month()]
@@ -246,7 +248,7 @@ func toVEvent(event eventT, hostname string, now *time.Time) *ical.VEvent {
 		),
 		URL:     baseURL,
 		Summary: fmt.Sprintf("Posten kommer %s %d.", dayName, dayNum),
-		Date:    &event.Date,
+		Date:    event.Date,
 	}
 }
 
@@ -260,7 +262,7 @@ func (c postalCodeT) String() string {
 
 func toPostalCode(x uint) (*postalCodeT, error) {
 	var postalCode postalCodeT
-	if x > 9999 {
+	if x > maxPostalCode {
 		return &postalCode, fmt.Errorf("invalid postal code: %04d", x)
 	}
 	return &postalCodeT{fmt.Sprintf("%04d", x)}, nil
@@ -279,7 +281,7 @@ func copyFile(sourcePath string, dest io.Writer) error {
 	return nil
 }
 
-func printVersionLine(wr io.Writer, key string, value string) {
+func printVersionLine(wr io.Writer, key, value string) {
 	fmt.Fprintf(wr, "%-12s: %s", key, value)
 	fmt.Fprintln(wr)
 }
@@ -292,7 +294,6 @@ func printVersion(wr io.Writer) {
 	if err == nil {
 		fmt.Fprint(wr, string(commit))
 	}
-
 }
 
 func die(msg interface{}) {
@@ -308,7 +309,7 @@ func main() {
 		versionArg    bool
 	)
 	flag.BoolVar(&versionArg, "version", false, "Show version and exit")
-	flag.UintVar(&codeArg, "code", 7530, "Postal code")
+	flag.UintVar(&codeArg, "code", meraker, "Postal code")
 	flag.StringVar(&outputPathArg, "output", "", "Path of output file")
 	flag.Parse()
 	if versionArg {
@@ -322,11 +323,12 @@ func main() {
 	wr := os.Stdout
 	ok := false
 	if outputPathArg != "" {
-		tmpFile, err := ioutil.TempFile("", "postgang-")
+		var tmpFile, outputDestination *os.File
+		tmpFile, err = ioutil.TempFile("", "postgang-")
 		if err != nil {
 			die(err)
 		}
-		outputDestination, err := os.Create(outputPathArg)
+		outputDestination, err = os.Create(outputPathArg)
 		if err != nil {
 			die(err)
 		}
@@ -341,20 +343,24 @@ func main() {
 			os.Remove(tmpFile.Name())
 		}()
 	}
-	tz, err := time.LoadLocation("Europe/Oslo")
+	var tz *time.Location
+	tz, err = time.LoadLocation("Europe/Oslo")
 	if err != nil {
 		log.Print(err)
 	} else {
 		tz = time.Local
 	}
-	response, now, err := fetchData(postalCode, tz)
+	var response *postenResponseT
+	var now *time.Time
+	response, now, err = fetchData(postalCode, tz)
 	if err != nil {
 		die(err)
 	}
 	if response.IsStreetAddressReq {
 		die(fmt.Sprintf("Street address is required %+v", response))
 	}
-	hostname, err := os.Hostname()
+	var hostname string
+	hostname, err = os.Hostname()
 	if err != nil {
 		hostname = err.Error()
 	}

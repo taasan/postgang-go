@@ -57,8 +57,8 @@ func postalCode() *postalCodeT {
 
 func event(date time.Time) eventT {
 	return eventT{
-		Date:       date,
-		PostalCode: *postalCode(),
+		Date:       &date,
+		PostalCode: postalCode(),
 	}
 }
 
@@ -94,7 +94,6 @@ func calendarTFixture() calendarT {
 		Events:   events,
 		Hostname: "test",
 	}
-
 }
 
 func TestToCalendarT(t *testing.T) {
@@ -104,11 +103,5 @@ func TestToCalendarT(t *testing.T) {
 	expectedCalendar := calendarTFixture()
 	if !reflect.DeepEqual(calendar, expectedCalendar) {
 		t.Fatalf("%s != %s", calendar, expectedCalendar)
-
 	}
 }
-
-/*
-{2021-12-28 23:36:55 +0000 GMT [{2021-12-28 00:00:00 +0000 GMT 6666} {2021-12-29 00:00:00 +0000 GMT 6666} {2021-12-30 00:00:00 +0000 GMT 6666} {2021-12-31 00:00:00 +0000 GMT 6666} {2022-01-01 00:00:00 +0000 GMT 6666} {2022-01-02 00:00:00 +0000 GMT 6666} {2022-01-03 00:00:00 +0000 GMT 6666}] -//Aasan//Aasan Go Postgang v1.0.0//EN test}
-{2021-12-28 23:36:55 +0000 GMT [{2021-12-28 00:00:00 +0100 CET 6666} {2021-12-29 00:00:00 +0100 CET 6666} {2021-12-30 00:00:00 +0100 CET 6666} {2021-12-31 00:00:00 +0100 CET 6666} {2022-01-01 00:00:00 +0100 CET 6666} {2022-01-02 00:00:00 +0100 CET 6666} {2022-01-03 00:00:00 +0100 CET 6666}] -//Aasan//Aasan Go Postgang v1.0.0//EN test}
-*/

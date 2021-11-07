@@ -67,7 +67,7 @@ func dateAttribute() *Attribute {
 	}
 }
 
-func field(name string, value string, attributes ...*Attribute) *icalField {
+func field(name, value string, attributes ...*Attribute) *icalField {
 	return &icalField{
 		name:       name,
 		value:      fmt.Sprint(value),

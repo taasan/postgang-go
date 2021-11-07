@@ -27,26 +27,32 @@ func (p *ContentPrinter) printLine(value fmt.Stringer) (int, error) {
 	const CRLFS = "\r\n "
 	bytesWritten := 0
 	reader := strings.NewReader(strings.ReplaceAll(value.String(), "\n", "\\n"))
+	var n int
+	var perror error
+	doReturn := func() (int, error) {
+		p.err = perror
+		p.bytesWritten = bytesWritten
+		return bytesWritten, perror
+	}
 	for {
-		if c, n, err := reader.ReadRune(); err != nil {
-			if err == io.EOF {
-				n, _ := p.Writer.WriteString(CRLF)
+		if r, bytesRead, readErr := reader.ReadRune(); readErr != nil {
+			if readErr == io.EOF {
+				n, perror = p.Writer.WriteString(CRLF)
 				bytesWritten += n
 				p.currentLineLength = 0
-				p.bytesWritten += bytesWritten
-				return bytesWritten, nil
 			}
-			p.err = err
-			p.bytesWritten += bytesWritten
-			return bytesWritten, err
+			return doReturn()
 		} else {
-			if n+p.currentLineLength > maxLineLen {
-				n, _ = p.Writer.WriteString(CRLFS)
+			if bytesRead+p.currentLineLength > maxLineLen {
+				n, perror = p.Writer.WriteString(CRLFS)
 				bytesWritten += n
+				if perror != nil {
+					return doReturn()
+				}
 				p.currentLineLength = 1
 			}
-			n, _ = p.Writer.WriteRune(c)
-			bytesWritten += n
+			n, perror = p.Writer.WriteRune(r)
+			bytesWritten += bytesRead
 			p.currentLineLength += n
 		}
 	}

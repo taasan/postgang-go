@@ -280,9 +280,11 @@ func printVersion(wr io.Writer) {
 	printVersionLine(wr, "Build date", buildstamp)
 	printVersionLine(wr, "Version", version)
 	fmt.Fprintln(wr)
-	commit, err := base64.RawStdEncoding.DecodeString(gitCommit)
+	commit, err := base64.StdEncoding.DecodeString(gitCommit)
 	if err == nil {
 		fmt.Fprint(wr, string(commit))
+	} else {
+		log.Print("Error base64 decoding git commit", err, gitCommit)
 	}
 }
 

@@ -234,15 +234,8 @@ func toVCalendar(cal *calendarT) *ical.Section {
 func toVEvent(event eventT, hostname string) *ical.VEvent {
 	dayName := weekdayNames[event.Date.Weekday()]
 	dayNum := event.Date.Day()
-	monthName := monthNames[event.Date.Month()]
 	return &ical.VEvent{
-		UID: fmt.Sprintf(
-			"DeliveryDay {day = %s, dayNum = %d, month = %s}@%s",
-			dayName,
-			dayNum,
-			monthName,
-			hostname,
-		),
+		UID:     fmt.Sprintf("postgang-%s@%s", event.Date.Format("20060102"), hostname),
 		URL:     baseURL,
 		Summary: fmt.Sprintf("Posten kommer %s %d.", dayName, dayNum),
 		Date:    event.Date,

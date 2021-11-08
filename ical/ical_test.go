@@ -1,36 +1,48 @@
 package ical
 
 import (
-	"strings"
+	"net/url"
 	"testing"
+	"time"
 )
 
-func (f *icalField) String() string {
-	var sb = &strings.Builder{}
-	NewContentPrinter(sb, true).printField(f)
-	return sb.String()
+func timestamp() *time.Time {
+	t := time.Date(2020, 1, 2, 3, 4, 5, 6, time.Local)
+	return &t
 }
 
-func TestIcalFieldStringWithAttributes(t *testing.T) {
-	f := &icalField{
-		name: "SUMMARY",
-		attributes: []*Attribute{
-			{Name: "X-A", Value: "12"},
-		},
-		value: "Abba 12;\nHep stars 11",
-	}
-	if f.String() != "SUMMARY;X-A=12:Abba 12\\;\\nHep stars 11\r\n" {
-		t.Errorf("%s", f.String())
+func prodID() string {
+	return "prodID"
+}
+
+func veventFixture() *VEvent {
+	u, _ := url.Parse("https://www.example.com")
+	return &VEvent{
+		UID:     "UID",
+		URL:     u,
+		Summary: "Summary",
+		Date:    timestamp(),
 	}
 }
 
-func TestIcalFieldStringWithoutAttributes(t *testing.T) {
-	f := &icalField{
-		name:       "SUMMARY",
-		attributes: []*Attribute{},
-		value:      "Abba 12;\nHep stars 11",
+func vcalFixture() *VCalendar {
+	return NewVCalendar(prodID(), timestamp(), veventFixture())
+}
+
+func TestCalendar(t *testing.T) {
+	cal := Calendar(vcalFixture())
+	expected := &Section{
+		name:    "VCALENDAR",
+		content: &Fields{Fields: make([]*icalField, 13)},
 	}
-	if f.String() != "SUMMARY:Abba 12\\;\\nHep stars 11\r\n" {
-		t.Errorf("%s", f.String())
+	if cal.name != expected.name {
+		t.Logf("%s != %s", cal.name, expected.name)
+		t.Fail()
+	}
+	gotLen := len(cal.content.getFields())
+	expectedLen := len(expected.content.getFields())
+	if gotLen != expectedLen {
+		t.Logf("Expected %d fields, got %d", expectedLen, gotLen)
+		t.Fail()
 	}
 }

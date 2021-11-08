@@ -36,13 +36,12 @@ type icalContent interface {
 }
 
 type Section struct {
-	name       string
-	attributes []*Attribute
-	content    icalContent
+	name    string
+	content icalContent
 }
 
 func (section *Section) getFields() []*icalField {
-	buf := []*icalField{field("BEGIN", section.name, section.attributes...)}
+	buf := []*icalField{field("BEGIN", section.name)}
 	buf = append(buf, section.content.getFields()...)
 	buf = append(buf, field("END", section.name))
 	return buf
@@ -159,10 +158,9 @@ func event(event *VEvent, now *time.Time) *Section {
 	return section("VEVENT", fields)
 }
 
-func section(name string, content icalContent, attributes ...*Attribute) *Section {
+func section(name string, content icalContent) *Section {
 	return &Section{
-		name:       name,
-		content:    content,
-		attributes: attributes,
+		name:    name,
+		content: content,
 	}
 }

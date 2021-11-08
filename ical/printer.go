@@ -24,7 +24,7 @@ func NewContentPrinter(wr PrintWriter, errorsAreFatal bool) *ContentPrinter {
 	return &ContentPrinter{writer: wr, errorsAreFatal: errorsAreFatal}
 }
 
-func (p *ContentPrinter) printLn() *ContentPrinter {
+func (p *ContentPrinter) printLn() {
 	n, err := p.writer.WriteString("\r\n")
 	p.bytesWritten += n
 	p.err = err
@@ -33,23 +33,22 @@ func (p *ContentPrinter) printLn() *ContentPrinter {
 	} else if p.errorsAreFatal {
 		log.Fatal(err)
 	}
-	return p
 }
 
-func (p *ContentPrinter) print(value string) *ContentPrinter {
+func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 	if p.err != nil {
 		return p
 	}
 	const CRLFS = "\r\n "
 	bytesWritten := 0
-	reader := strings.NewReader(strings.ReplaceAll(value, "\n", "\\n"))
+	reader := strings.NewReader(value)
 	var n int
 	var perror error
 	doReturn := func() *ContentPrinter {
 		p.err = perror
 		p.bytesWritten = bytesWritten
 		if p.err != nil && p.errorsAreFatal {
-			log.Panic(p.err)
+			log.Fatal(p.err)
 		}
 		return p
 	}
@@ -57,6 +56,14 @@ func (p *ContentPrinter) print(value string) *ContentPrinter {
 		if r, bytesRead, readErr := reader.ReadRune(); readErr != nil {
 			return doReturn()
 		} else {
+			var toPrint = ""
+			if escape && (r == '\\' || r == ';' || r == ',') {
+				toPrint = fmt.Sprintf("\\%c", r)
+				bytesRead = len(toPrint)
+			} else if r == '\n' {
+				toPrint = "\\n"
+				bytesRead = len(toPrint)
+			}
 			if bytesRead+p.currentLineLength > maxLineLen {
 				n, perror = p.writer.WriteString(CRLFS)
 				bytesWritten += n
@@ -65,43 +72,32 @@ func (p *ContentPrinter) print(value string) *ContentPrinter {
 				}
 				p.currentLineLength = 1
 			}
-			n, perror = p.writer.WriteRune(r)
+			if toPrint == "" {
+				n, perror = p.writer.WriteRune(r)
+			} else {
+				n, perror = p.writer.WriteString(toPrint)
+			}
 			bytesWritten += bytesRead
 			p.currentLineLength += n
 		}
 	}
 }
 
-func escapeChar(c rune) string {
-	if c == '\\' || c == ';' || c == ',' {
-		return fmt.Sprintf("\\%c", c)
-	}
-	return string(c)
-}
-
-func escape(s string) string {
-	var sb strings.Builder
-	for _, c := range s {
-		sb.WriteString(escapeChar(c))
-	}
-	return sb.String()
-}
-
 func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
-	p.print(escape(a.Name))
-	p.print("=")
-	p.print(escape(a.Value))
+	p.print(a.Name, true).
+		print("=", false).
+		print(a.Value, true)
 	return p
 }
 
 func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
-	p.print(escape(f.name))
+	p.print(f.name, true)
 	for _, a := range f.attributes {
-		p.print(";").
+		p.print(";", false).
 			printAttribute(a)
 	}
-	p.print(":").
-		print(escape(f.value)).
+	p.print(":", false).
+		print(f.value, true).
 		printLn()
 	return p
 }

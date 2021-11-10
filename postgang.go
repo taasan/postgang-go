@@ -5,6 +5,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -37,7 +38,6 @@ type deliveryDayT struct {
 }
 
 const maxPostalCode = 9999
-const meraker = 7530
 
 var baseURL = func() *url.URL {
 	u, err := url.Parse("https://www.posten.no/levering-av-post/")
@@ -45,6 +45,14 @@ var baseURL = func() *url.URL {
 		log.Fatal(err)
 	}
 	return u
+}()
+
+var timezone = func() *time.Location {
+	tz, err := time.LoadLocation("Europe/Oslo")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return tz
 }()
 
 var version = "development"
@@ -115,14 +123,30 @@ var deliverydayRe = func() *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`^(?:i (?:dag|morgen) )?(?P<dayname>%s) (?P<day>\d+)\. (?P<month>%s)$`, days, months))
 }()
 
-func dataURL(code postalCodeT) string {
-	return fmt.Sprintf("%s/_/component/main/1/leftRegion/1?postCode=%s", baseURL, code)
+func dataURL(code *postalCodeT) *url.URL {
+	u, err := url.Parse(fmt.Sprintf("%s/_/component/main/1/leftRegion/1?postCode=%s", baseURL, code))
+	if err != nil {
+		log.Fatal(err)
+	}
+	return u
+}
+
+func readData(now *time.Time, in io.Reader) (*postenResponseT, *time.Time, error) {
+	bodyString, err := ioutil.ReadAll(in)
+	if err != nil {
+		return nil, nil, err
+	}
+	var data postenResponseT
+	err = json.NewDecoder(bytes.NewReader(bodyString)).Decode(&data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &data, now, nil
 }
 
 func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenResponseT, *time.Time, error) {
-	u := dataURL(*postalCode)
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequest("GET", dataURL(postalCode).String(), nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -188,71 +212,58 @@ func (day *deliveryDayT) toDate(now *time.Time) *time.Time {
 	return &date
 }
 
-type eventT struct {
-	Date       *time.Time
-	PostalCode *postalCodeT
-}
-
 type calendarT struct {
-	Now      *time.Time
-	Events   []eventT
-	ProdID   string
-	Hostname string
-}
-
-func (day *deliveryDayT) toEventT(now *time.Time) eventT {
-	date := day.toDate(now)
-
-	data := eventT{
-		Date:       date,
-		PostalCode: day.PostalCode,
-	}
-	return data
+	now      *time.Time
+	dates    []*time.Time
+	prodID   string
+	hostname string
+	code     *postalCodeT
 }
 
 func toCalendarT(now *time.Time, response *postenResponseT, hostname string, postalCode *postalCodeT) *calendarT {
-	buf := make([]eventT, len(response.NextDeliveryDays))
+	buf := make([]*time.Time, len(response.NextDeliveryDays))
 	for i, x := range response.NextDeliveryDays {
-		buf[i] = parseDeliveryDay(x, now.Location(), postalCode).toEventT(now)
+		buf[i] = parseDeliveryDay(x, now.Location(), postalCode).toDate(now)
 	}
 	return &calendarT{
-		Events:   buf,
-		Now:      now,
-		ProdID:   fmt.Sprintf("-//Aasan//Aasan Go Postgang %s@%s//EN", postalCode, version),
-		Hostname: hostname,
+		dates:    buf,
+		now:      now,
+		prodID:   fmt.Sprintf("-//Aasan//Aasan Go Postgang %s@%s//EN", postalCode, version),
+		hostname: hostname,
+		code:     postalCode,
 	}
 }
 
 func toVCalendar(cal *calendarT) *ical.Section {
-	buf := make([]*ical.VEvent, len(cal.Events))
-	for i, x := range cal.Events {
-		buf[i] = toVEvent(x, cal.Hostname)
+	buf := make([]*ical.VEvent, len(cal.dates))
+	for i, x := range cal.dates {
+		buf[i] = toVEvent(x, cal)
 	}
-	return ical.Calendar(ical.NewVCalendar(cal.ProdID, cal.Now, buf...))
+	return ical.Calendar(ical.NewVCalendar(cal.prodID, cal.now, buf...))
 }
 
-func toVEvent(event eventT, hostname string) *ical.VEvent {
-	dayName := weekdayNames[event.Date.Weekday()]
-	dayNum := event.Date.Day()
-	return &ical.VEvent{
-		UID:     fmt.Sprintf("postgang-%s@%s", event.Date.Format("20060102"), hostname),
-		URL:     baseURL,
-		Summary: fmt.Sprintf("Posten kommer %s %d.", dayName, dayNum),
-		Date:    event.Date,
-	}
+func toVEvent(date *time.Time, cal *calendarT) *ical.VEvent {
+	dayName := weekdayNames[date.Weekday()]
+	dayNum := date.Day()
+	return ical.NewVEvent(
+		fmt.Sprintf("postgang-%s@%s", date.Format("20060102"), cal.hostname),
+		baseURL,
+		fmt.Sprintf("%s: Posten kommer %s %d.", cal.code, dayName, dayNum),
+		date,
+	)
 }
 
 type postalCodeT struct {
 	code string
 }
 
-func (c postalCodeT) String() string {
+func (c *postalCodeT) String() string {
 	return c.code
 }
 
 func toPostalCode(x uint) (*postalCodeT, error) {
 	var postalCode postalCodeT
-	if x > maxPostalCode {
+	if x < 1 || x > maxPostalCode {
 		return &postalCode, fmt.Errorf("invalid postal code: %04d", x)
 	}
 	return &postalCodeT{fmt.Sprintf("%04d", x)}, nil
@@ -294,33 +305,101 @@ func die(msg interface{}) {
 	log.Fatal(msg)
 }
 
-func main() {
+type commandLineArgs struct {
+	code       *postalCodeT
+	outputPath string
+	fetch      func() (*postenResponseT, *time.Time, error)
+	err        error
+	version    bool
+	hostname   string
+}
+
+func parseArgs(cmd *flag.FlagSet, a []string) (commandLineArgs, error) {
 	var (
 		codeArg       uint
 		outputPathArg string
 		versionArg    bool
+		inputPathArg  string
+		dateArg       string
+		hostnameArg   string
 	)
-	flag.BoolVar(&versionArg, "version", false, "Show version and exit")
-	flag.UintVar(&codeArg, "code", meraker, "Postal code")
-	flag.StringVar(&outputPathArg, "output", "", "Path of output file")
-	flag.Parse()
+	cmd.StringVar(&inputPathArg, "input", "", "Read input from `file` instead of fetching from posten.no")
+	cmd.StringVar(&dateArg, "date", "", "Use as fetch `date`")
+	cmd.StringVar(&hostnameArg, "hostname", "", "Use in UID")
+	cmd.BoolVar(&versionArg, "version", false, "Show version and exit")
+	cmd.UintVar(&codeArg, "code", 0, "Postal code, an `integer` between 1 and 9999")
+	cmd.StringVar(&outputPathArg, "output", "", "Path of output file")
+	if err := cmd.Parse(a); err != nil {
+		return commandLineArgs{}, err
+	}
 	if versionArg {
-		printVersion(os.Stdout)
-		os.Exit(0)
+		return commandLineArgs{version: true}, nil
 	}
 	postalCode, err := toPostalCode(codeArg)
 	if err != nil {
+		return commandLineArgs{}, err
+	}
+
+	var doFetch func() (*postenResponseT, *time.Time, error)
+	if inputPathArg != "" {
+		var in *os.File
+		if inputPathArg == "-" {
+			in = os.Stdin
+		} else {
+			in, err = os.Open(inputPathArg)
+			if err != nil {
+				return commandLineArgs{}, err
+			}
+		}
+		var now time.Time
+		if dateArg != "" {
+			now, err = time.Parse("2006-01-02", dateArg)
+			if err != nil {
+				return commandLineArgs{}, err
+			}
+		} else {
+			now = time.Now()
+		}
+		now = now.In(timezone)
+		doFetch = func() (*postenResponseT, *time.Time, error) {
+			return readData(&now, in)
+		}
+	} else {
+		doFetch = func() (*postenResponseT, *time.Time, error) {
+			return fetchData(postalCode, timezone)
+		}
+	}
+	if outputPathArg == "-" {
+		outputPathArg = ""
+	}
+	return commandLineArgs{
+		code:       postalCode,
+		fetch:      doFetch,
+		outputPath: outputPathArg,
+		version:    versionArg,
+		err:        err,
+		hostname:   hostnameArg,
+	}, nil
+}
+
+func cli(as []string) {
+	args, err := parseArgs(flag.CommandLine, as)
+	if err != nil {
 		die(err)
+	}
+	if args.version {
+		printVersion(os.Stdout)
+		os.Exit(0)
 	}
 	wr := os.Stdout
 	ok := false
-	if outputPathArg != "" {
+	if args.outputPath != "" {
 		var tmpFile, outputDestination *os.File
-		tmpFile, err = ioutil.TempFile("", "postgang-")
+		outputDestination, err = os.Create(args.outputPath)
 		if err != nil {
 			die(err)
 		}
-		outputDestination, err = os.Create(outputPathArg)
+		tmpFile, err = ioutil.TempFile("", "postgang-")
 		if err != nil {
 			die(err)
 		}
@@ -335,16 +414,9 @@ func main() {
 			os.Remove(tmpFile.Name())
 		}()
 	}
-	var tz *time.Location
-	tz, err = time.LoadLocation("Europe/Oslo")
-	if err != nil {
-		log.Print(err)
-	} else {
-		tz = time.Local
-	}
 	var response *postenResponseT
 	var now *time.Time
-	response, now, err = fetchData(postalCode, tz)
+	response, now, err = args.fetch()
 	if err != nil {
 		die(err)
 	}
@@ -352,20 +424,29 @@ func main() {
 		die(fmt.Sprintf("Street address is required %+v", response))
 	}
 	var hostname string
-	hostname, err = os.Hostname()
-	if err != nil {
-		hostname = err.Error()
+	if args.hostname != "" {
+		hostname = args.hostname
+	} else {
+		hostname, err = os.Hostname()
+		if err != nil {
+			hostname = err.Error()
+		}
 	}
-	calendar := toCalendarT(now, response, hostname, postalCode)
-	if len(calendar.Events) == 0 {
-		die(fmt.Sprintf("No delivery days found, check postal code: %s", postalCode))
+	calendar := toCalendarT(now, response, hostname, args.code)
+	if len(calendar.dates) == 0 {
+		die(fmt.Sprintf("No delivery days found, check postal code: %s", args.code))
 	}
 	buf := bufio.NewWriter(wr)
 	defer buf.Flush()
 
-	err = toVCalendar(calendar).Print(ical.NewContentPrinter(buf, true))
+	p := ical.NewContentPrinter(buf, true).Print(toVCalendar(calendar))
+	err = p.Error()
 	if err != nil {
 		die(err)
 	}
 	ok = true // Used in closure
+}
+
+func main() {
+	cli(os.Args[1:])
 }

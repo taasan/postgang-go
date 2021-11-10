@@ -1,0 +1,12 @@
+{
+    "nextDeliveryDays": [
+        "i dag tirsdag 28. desember",
+        "i morgen onsdag 29. desember",
+        "torsdag 30. desember",
+        "fredag 31. desember",
+        "lørdag 1. januar",
+        "søndag 2. januar",
+        "mandag 3. januar"
+    ],
+    "isStreetAddressReq": false
+}

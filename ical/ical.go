@@ -9,20 +9,29 @@ import (
 const maxLineLen = 75
 
 type VEvent struct {
-	UID     string
-	URL     *url.URL
-	Summary string
-	Date    *time.Time
+	uid     string
+	url     *url.URL
+	summary string
+	date    *time.Time
+}
+
+func NewVEvent(uid string, u *url.URL, summary string, date *time.Time) *VEvent {
+	return &VEvent{
+		uid:     uid,
+		url:     u,
+		summary: summary,
+		date:    date,
+	}
 }
 
 type VCalendar struct {
-	ProdID    string
-	Events    []*VEvent
-	Timestamp *time.Time
+	prodID    string
+	events    []*VEvent
+	timestamp *time.Time
 }
 
 func NewVCalendar(prodID string, timestamp *time.Time, events ...*VEvent) *VCalendar {
-	return &VCalendar{ProdID: prodID, Events: events, Timestamp: timestamp}
+	return &VCalendar{prodID: prodID, events: events, timestamp: timestamp}
 }
 
 type icalField struct {
@@ -32,7 +41,7 @@ type icalField struct {
 }
 
 type icalContent interface {
-	getFields() []*icalField
+	fields() []*icalField
 }
 
 type Section struct {
@@ -40,9 +49,9 @@ type Section struct {
 	content icalContent
 }
 
-func (section *Section) getFields() []*icalField {
+func (section *Section) fields() []*icalField {
 	buf := []*icalField{field("BEGIN", section.name)}
-	buf = append(buf, section.content.getFields()...)
+	buf = append(buf, section.content.fields()...)
 	buf = append(buf, field("END", section.name))
 	return buf
 }
@@ -51,7 +60,7 @@ type Fields struct {
 	Fields []*icalField
 }
 
-func (fields *Fields) getFields() []*icalField {
+func (fields *Fields) fields() []*icalField {
 	return fields.Fields
 }
 
@@ -83,75 +92,59 @@ func dateField(name string, value *time.Time) *icalField {
 	return field(name, value.Format("20060102"), dateAttribute())
 }
 
-func DtStart(value *time.Time) *icalField {
-	return dateField("DTSTART", value)
+func (event *VEvent) DtStart() *icalField {
+	return dateField("DTSTART", event.date)
 }
 
-func DtEnd(value *time.Time) *icalField {
-	return dateField("DTEND", value)
+func (event *VEvent) DtEnd() *icalField {
+	dtEnd := event.date.AddDate(0, 0, 1)
+	return dateField("DTEND", &dtEnd)
 }
 
-func DtStamp(value *time.Time) *icalField {
-	return field("DTSTAMP", value.Format("20060102T150405Z"))
+func (cal *VCalendar) DtStamp() *icalField {
+	return field("DTSTAMP", cal.timestamp.In(time.UTC).Format("20060102T150405Z"))
 }
 
-func Version() *icalField {
-	return field("VERSION", "2.0")
+func (cal *VCalendar) ProdID() *icalField {
+	return field("PRODID", cal.prodID)
 }
 
-func ProdID(value string) *icalField {
-	return field("PRODID", value)
+func (event *VEvent) UID() *icalField {
+	return field("UID", event.uid)
 }
 
-func CalScale() *icalField {
-	return field("CALSCALE", "GREGORIAN")
+func (event *VEvent) URL() *icalField {
+	return urlField("URL", event.url)
 }
 
-func Method() *icalField {
-	return field("METHOD", "PUBLISH")
-}
-
-func Transp() *icalField {
-	return field("TRANSP", "TRANSPARENT")
-}
-
-func UID(value string) *icalField {
-	return field("UID", value)
-}
-
-func URL(value *url.URL) *icalField {
-	return urlField("URL", value)
-}
-
-func Summary(value string) *icalField {
-	return field("SUMMARY", value)
+func (event *VEvent) Summary() *icalField {
+	return field("SUMMARY", event.summary)
 }
 
 func Calendar(cal *VCalendar) *Section {
 	fields := []*icalField{
-		Version(),
-		ProdID(cal.ProdID),
-		CalScale(),
-		Method(),
+		field("VERSION", "2.0"),
+		cal.ProdID(),
+		field("CALSCALE", "GREGORIAN"),
+		field("METHOD", "PUBLISH"),
 	}
-	for _, x := range cal.Events {
-		e := event(x, cal.Timestamp)
-		fields = append(fields, e.getFields()...)
+	for _, x := range cal.events {
+		e := event(x, cal)
+		fields = append(fields, e.fields()...)
 	}
 	return section("VCALENDAR", &Fields{Fields: fields})
 }
 
-func event(event *VEvent, now *time.Time) *Section {
-	dtEnd := event.Date.AddDate(0, 0, 1)
+func event(event *VEvent, cal *VCalendar) *Section {
 	fields := &Fields{
 		Fields: []*icalField{
-			UID(event.UID),
-			URL(event.URL),
-			Summary(event.Summary),
-			Transp(),
-			DtStart(event.Date),
-			DtEnd(&dtEnd),
-			DtStamp(now),
+			event.UID(),
+			event.URL(),
+			event.Summary(),
+			field("TRANSP", "TRANSPARENT"),
+			event.DtStart(),
+			event.DtEnd(),
+			cal.DtStamp(),
 		},
 	}
 

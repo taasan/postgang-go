@@ -78,7 +78,7 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - gomnd
+    # - gomnd
     - goprintffuncname
     - gosec
     - gosimple
@@ -116,12 +116,12 @@ linters:
   # - revive
   # - wsl
 
-issues:
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gomnd
+# issues:
+#   # Excluding configuration per-path, per-linter, per-text and per-source
+#   exclude-rules:
+#     - path: _test\.go
+#       linters:
+#         - gomnd
 
 run:
   skip-dirs: []

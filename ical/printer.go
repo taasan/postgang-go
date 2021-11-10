@@ -20,6 +20,10 @@ type PrintWriter interface {
 	WriteRune(r rune) (n int, err error)
 }
 
+func (p *ContentPrinter) Error() error {
+	return p.err
+}
+
 func NewContentPrinter(wr PrintWriter, errorsAreFatal bool) *ContentPrinter {
 	return &ContentPrinter{writer: wr, errorsAreFatal: errorsAreFatal}
 }
@@ -52,7 +56,7 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 		}
 		return p
 	}
-	for {
+	for perror == nil {
 		if r, bytesRead, readErr := reader.ReadRune(); readErr != nil {
 			return doReturn()
 		} else {
@@ -67,9 +71,6 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 			if bytesRead+p.currentLineLength > maxLineLen {
 				n, perror = p.writer.WriteString(CRLFS)
 				bytesWritten += n
-				if perror != nil {
-					return doReturn()
-				}
 				p.currentLineLength = 1
 			}
 			if toPrint == "" {
@@ -81,17 +82,18 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 			p.currentLineLength += n
 		}
 	}
+	return doReturn()
 }
 
 func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
-	p.print(a.Name, true).
+	p.print(a.Name, false).
 		print("=", false).
 		print(a.Value, true)
 	return p
 }
 
 func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
-	p.print(f.name, true)
+	p.print(f.name, false)
 	for _, a := range f.attributes {
 		p.print(";", false).
 			printAttribute(a)
@@ -102,18 +104,18 @@ func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
 	return p
 }
 
-func (section *Section) Print(p *ContentPrinter) error {
-	for _, field := range section.getFields() {
+func (p *ContentPrinter) Print(content icalContent) *ContentPrinter {
+	for _, field := range content.fields() {
 		p = p.printField(field)
 		if p.err != nil {
-			return p.err
+			return p
 		}
 	}
-	return p.err
+	return p
 }
 
 func (section *Section) String() string {
 	var sb = &strings.Builder{}
-	section.Print(NewContentPrinter(sb, true))
+	NewContentPrinter(sb, true).Print(section)
 	return sb.String()
 }

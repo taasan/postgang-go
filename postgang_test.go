@@ -1,9 +1,13 @@
 package main
 
 import (
-	_ "embed"
+	"bytes"
+	"embed"
+	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -44,8 +48,8 @@ func TestFromMonth(t *testing.T) {
 }
 
 func now() *time.Time {
-	date, _ := time.Parse(time.RFC1123, "Tue, 28 Dec 2021 23:36:55 GMT")
-	return &date
+	n := time.Date(2021, 12, 28, 0, 0, 0, 0, time.UTC)
+	return &n
 }
 
 func prodID() string {
@@ -57,14 +61,10 @@ func postalCode() *postalCodeT {
 	return postalCode
 }
 
-func event(date time.Time) eventT {
-	return eventT{
-		Date:       &date,
-		PostalCode: postalCode(),
-	}
-}
+//go:embed test/fixture*
+var fixtures embed.FS
 
-func fetchDataFixture() (*postenResponseT, *time.Time) {
+func dataFixture() *postenResponseT {
 	return &postenResponseT{
 		NextDeliveryDays: []string{
 			"i dag tirsdag 28. desember",
@@ -76,35 +76,58 @@ func fetchDataFixture() (*postenResponseT, *time.Time) {
 			"mandag 3. januar",
 		},
 		IsStreetAddressReq: false,
-	}, now()
+	}
+}
+
+func readFixture(name string, t *testing.T) []byte {
+	bs, err := fixtures.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bs
+}
+
+func TestReadData(t *testing.T) {
+	bs := readFixture("test/fixture.json", t)
+	p, _, _ := readData(now(), bytes.NewReader(bs))
+	expected := dataFixture()
+	if !reflect.DeepEqual(p, expected) {
+		t.Fatalf("\n%+v\n\n!=\n\n%+v", p, expected)
+	}
+}
+
+func addDay(t *time.Time, days int) *time.Time {
+	n := t.AddDate(0, 0, days)
+	return &n
 }
 
 func calendarTFixture() *calendarT {
-	timezone := now().Location()
-	events := []eventT{
-		event(time.Date(2021, 12, 28, 0, 0, 0, 0, timezone)),
-		event(time.Date(2021, 12, 29, 0, 0, 0, 0, timezone)),
-		event(time.Date(2021, 12, 30, 0, 0, 0, 0, timezone)),
-		event(time.Date(2021, 12, 31, 0, 0, 0, 0, timezone)),
-		event(time.Date(2022, 1, 1, 0, 0, 0, 0, timezone)),
-		event(time.Date(2022, 1, 2, 0, 0, 0, 0, timezone)),
-		event(time.Date(2022, 1, 3, 0, 0, 0, 0, timezone)),
+	now := now()
+	dates := []*time.Time{
+		now,
+		addDay(now, 1),
+		addDay(now, 2),
+		addDay(now, 3),
+		addDay(now, 4),
+		addDay(now, 5),
+		addDay(now, 6),
 	}
 	return &calendarT{
-		Now:      now(),
-		ProdID:   prodID(),
-		Events:   events,
-		Hostname: "test",
+		now:      dates[0],
+		prodID:   prodID(),
+		dates:    dates,
+		hostname: "test",
+		code:     postalCode(),
 	}
 }
 
 func TestToCalendarT(t *testing.T) {
-	resp, now := fetchDataFixture()
-	hostname := "test"
-	calendar := *toCalendarT(now, resp, hostname, postalCode())
-	expectedCalendar := *calendarTFixture()
+	resp, now := dataFixture(), now()
+	cal := calendarTFixture()
+	calendar := toCalendarT(now, resp, cal.hostname, postalCode())
+	expectedCalendar := cal
 	if !reflect.DeepEqual(calendar, expectedCalendar) {
-		t.Fatalf("\n%s\n\n!=\n\n%s", calendar, expectedCalendar)
+		t.Fatalf("\n%+v\n\n!=\n\n%+v", calendar, expectedCalendar)
 	}
 }
 
@@ -112,10 +135,7 @@ func TestPrint(t *testing.T) {
 	cal := toVCalendar(calendarTFixture())
 	res := cal.String()
 	fixtureName := "test/fixture.ics"
-	icsFixture, err := ioutil.ReadFile(fixtureName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	icsFixture := readFixture(fixtureName, t)
 	if res != string(icsFixture) {
 		tmp, err := ioutil.TempFile("", "postgang-*.ics")
 		if err != nil {
@@ -127,4 +147,104 @@ func TestPrint(t *testing.T) {
 		}
 		t.Fatalf("ICS mismatch, see\ndiff -u %s %s", fixtureName, tmp.Name())
 	}
+}
+
+func commandLine() *flag.FlagSet {
+	return flag.NewFlagSet("Test", flag.ContinueOnError)
+}
+
+func TestParseArgsCode(t *testing.T) {
+	got, err := parseArgs(commandLine(), []string{"--code=" + postalCode().code})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := commandLineArgs{code: postalCode()}
+	if !reflect.DeepEqual(got.code, expected.code) {
+		t.Fatalf("%s != %s", got.code, expected.code)
+	}
+}
+
+func TestParseArgsInvalidCode(t *testing.T) {
+	_, err := parseArgs(commandLine(), []string{"--code=99999"})
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestParseArgsInvalidDate(t *testing.T) {
+	_, err := parseArgs(commandLine(), []string{"--date=20-a-n"})
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestParseArgsVersion(t *testing.T) {
+	got, err := parseArgs(commandLine(), []string{"--version"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := commandLineArgs{version: true}
+	if !reflect.DeepEqual(got.code, expected.code) {
+		t.Fatalf("%s != %s", got.code, expected.code)
+	}
+	if got.code != nil {
+		t.Fatalf("I didn't expect a code! %s", got.code)
+	}
+}
+
+type ReplaceIO struct {
+	orig *os.File
+	in   *os.File
+	out  *os.File
+}
+
+func newReplaceIO(orig *os.File) (*ReplaceIO, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	return &ReplaceIO{
+		orig: orig,
+		in:   r,
+		out:  w,
+	}, nil
+}
+
+func TestCli(t *testing.T) {
+	stdin, err := newReplaceIO(os.Stdin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = stdin.in
+	_, err = stdin.out.WriteString(string(readFixture("test/fixture.json", t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stdin.out.Close()
+
+	stdout, err := newReplaceIO(os.Stdout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = stdout.out
+	var outputBuf bytes.Buffer
+	cli([]string{"--code", postalCode().code, "--input=-", "--date", now().Format("2006-01-02"), "--hostname", "test"})
+	os.Stdin = stdin.orig
+	stdout.out.Close()
+	_, err = io.Copy(&outputBuf, stdout.in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.Stdout = stdout.orig
+	expected := string(readFixture("test/fixture.ics", t))
+	if outputBuf.String() != expected {
+		t.Log(expected)
+		t.Error(outputBuf.String())
+	}
+}
+
+func TestDataURL(t *testing.T) { //nolint
+	dataURL(postalCode())
 }

@@ -17,12 +17,12 @@ func prodID() string {
 
 func veventFixture() *VEvent {
 	u, _ := url.Parse("https://www.example.com")
-	return &VEvent{
-		UID:     "UID",
-		URL:     u,
-		Summary: "Summary",
-		Date:    timestamp(),
-	}
+	return NewVEvent(
+		"UID",
+		u,
+		"Summary",
+		timestamp(),
+	)
 }
 
 func vcalFixture() *VCalendar {
@@ -39,8 +39,8 @@ func TestCalendar(t *testing.T) {
 		t.Logf("%s != %s", cal.name, expected.name)
 		t.Fail()
 	}
-	gotLen := len(cal.content.getFields())
-	expectedLen := len(expected.content.getFields())
+	gotLen := len(cal.content.fields())
+	expectedLen := len(expected.content.fields())
 	if gotLen != expectedLen {
 		t.Logf("Expected %d fields, got %d", expectedLen, gotLen)
 		t.Fail()

@@ -48,8 +48,7 @@ func TestFromMonth(t *testing.T) {
 }
 
 func now() *time.Time {
-	n := time.Date(2021, 12, 28, 0, 0, 0, 0, time.UTC)
-	return &n
+	return calendarTFixture().dates[0]
 }
 
 func prodID() string {
@@ -102,15 +101,15 @@ func addDay(t *time.Time, days int) *time.Time {
 }
 
 func calendarTFixture() *calendarT {
-	now := now()
+	now := time.Date(2021, 12, 28, 0, 0, 0, 0, time.UTC)
 	dates := []*time.Time{
-		now,
-		addDay(now, 1),
-		addDay(now, 2),
-		addDay(now, 3),
-		addDay(now, 4),
-		addDay(now, 5),
-		addDay(now, 6),
+		&now,
+		addDay(&now, 1),
+		addDay(&now, 2),
+		addDay(&now, 3),
+		addDay(&now, 4),
+		addDay(&now, 5),
+		addDay(&now, 6),
 	}
 	return &calendarT{
 		now:      dates[0],

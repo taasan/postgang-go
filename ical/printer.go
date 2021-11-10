@@ -77,7 +77,7 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 			} else {
 				n, perror = p.writer.WriteString(toPrint)
 			}
-			bytesWritten += bytesRead
+			bytesWritten += n
 			p.currentLineLength += n
 		}
 	}

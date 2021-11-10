@@ -36,7 +36,7 @@ func (p *ContentPrinter) printLn() {
 }
 
 func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
-	if p.err != nil {
+	if p.err != nil || value == "" {
 		return p
 	}
 	const CRLFS = "\r\n "

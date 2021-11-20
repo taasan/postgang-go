@@ -249,8 +249,22 @@ func TestDataURL(t *testing.T) { //nolint
 }
 
 func TestToPostalCode(t *testing.T) {
-	x, _ := toPostalCode("08")
-	if x.code != "0008" {
-		t.Fatalf("Expected '%s', got '%s'", "0008", x.code)
+	for i := 1; i <= 9999; i++ {
+		code := fmt.Sprintf("%04d", i)
+		x, _ := toPostalCode(code)
+		if x.code != code {
+			t.Fatalf("Expected '%s', got '%s'", code, x.code)
+		}
+	}
+}
+
+func TestToPostalCodeOutOfRange(t *testing.T) {
+	for _, i := range []int{0, 10000} {
+		code := fmt.Sprintf("%d", i)
+		_, err := toPostalCode(code)
+		expected := fmt.Sprintf("invalid postal code: %04d", i)
+		if err == nil || err.Error() != expected {
+			t.Fatalf("Expected '%s', got '%s'", expected, err)
+		}
 	}
 }

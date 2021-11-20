@@ -185,7 +185,7 @@ func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenRespons
 func parseDeliveryDay(s string, tz *time.Location, postalCode *postalCodeT) *deliveryDayT {
 	match := deliverydayRe.FindStringSubmatch(s)
 	if match == nil {
-		log.Fatal("No match")
+		log.Fatalf("No match: %s", s)
 	}
 	dayNum, _ := strconv.Atoi(match[2])
 	return &deliveryDayT{

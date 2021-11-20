@@ -56,7 +56,7 @@ func prodID() string {
 }
 
 func postalCode() *postalCodeT {
-	postalCode, _ := toPostalCode(6666)
+	postalCode, _ := toPostalCode("6666")
 	return postalCode
 }
 
@@ -246,4 +246,11 @@ func TestCli(t *testing.T) {
 
 func TestDataURL(t *testing.T) { //nolint
 	dataURL(postalCode())
+}
+
+func TestToPostalCode(t *testing.T) {
+	x, _ := toPostalCode("08")
+	if x.code != "0008" {
+		t.Fatalf("Expected '%s', got '%s'", "0008", x.code)
+	}
 }

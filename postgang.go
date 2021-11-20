@@ -261,7 +261,11 @@ func (c *postalCodeT) String() string {
 	return c.code
 }
 
-func toPostalCode(x uint) (*postalCodeT, error) {
+func toPostalCode(s string) (*postalCodeT, error) {
+	x, err := strconv.ParseUint(s, 10, 16)
+	if err != nil {
+		return nil, err
+	}
 	var postalCode postalCodeT
 	if x < 1 || x > maxPostalCode {
 		return &postalCode, fmt.Errorf("invalid postal code: %04d", x)
@@ -316,7 +320,7 @@ type commandLineArgs struct {
 
 func parseArgs(cmd *flag.FlagSet, a []string) (commandLineArgs, error) {
 	var (
-		codeArg       uint
+		codeArg       string
 		outputPathArg string
 		versionArg    bool
 		inputPathArg  string
@@ -327,7 +331,7 @@ func parseArgs(cmd *flag.FlagSet, a []string) (commandLineArgs, error) {
 	cmd.StringVar(&dateArg, "date", "", "Use as fetch `date`")
 	cmd.StringVar(&hostnameArg, "hostname", "", "Use in UID")
 	cmd.BoolVar(&versionArg, "version", false, "Show version and exit")
-	cmd.UintVar(&codeArg, "code", 0, "Postal code, an `integer` between 1 and 9999")
+	cmd.StringVar(&codeArg, "code", "", "Postal code, an `integer` between 1 and 9999")
 	cmd.StringVar(&outputPathArg, "output", "", "Path of output file")
 	if err := cmd.Parse(a); err != nil {
 		return commandLineArgs{}, err

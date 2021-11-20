@@ -11,7 +11,6 @@ type ContentPrinter struct {
 	writer            PrintWriter
 	currentLineLength int
 	err               error
-	bytesWritten      int
 	errorsAreFatal    bool
 }
 
@@ -29,8 +28,7 @@ func NewContentPrinter(wr PrintWriter, errorsAreFatal bool) *ContentPrinter {
 }
 
 func (p *ContentPrinter) printLn() {
-	n, err := p.writer.WriteString("\r\n")
-	p.bytesWritten += n
+	_, err := p.writer.WriteString("\r\n")
 	p.err = err
 	if err == nil {
 		p.currentLineLength = 0
@@ -50,7 +48,6 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 	var perror error
 	doReturn := func() *ContentPrinter {
 		p.err = perror
-		p.bytesWritten = bytesWritten
 		if p.err != nil && p.errorsAreFatal {
 			log.Fatal(p.err)
 		}

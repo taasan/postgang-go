@@ -52,10 +52,6 @@ func TestContentPrinterPrintLongLine(t *testing.T) {
 	p.print(fmt.Sprintf("%0*d", maxLineLen+3, 0), true)
 	expected := fmt.Sprintf("%0*d\r\n 000", maxLineLen, 0)
 	got := sb.String()
-	if len(expected) != p.bytesWritten {
-		t.Logf("%d != %d", len(expected), p.bytesWritten)
-		t.Fail()
-	}
 	if got != expected {
 		t.Logf("\n%s\n!=\n%s\nLengths %d != %d", got, expected, len(got), len(expected))
 		t.Fail()
@@ -67,10 +63,6 @@ func TestContentPrinterPrintLongLineEmoji(t *testing.T) {
 	p.print("A☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️", true)
 	expected := "A☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️\r\n ☣️☣️☣️☣️☣️☣️"
 	got := sb.String()
-	if len(expected) != p.bytesWritten {
-		t.Logf("%d != %d", len(expected), p.bytesWritten)
-		t.Fail()
-	}
 	if got != expected {
 		t.Logf("\n%s\n!=\n%s\nLengths %d != %d", got, expected, len(got), len(expected))
 		t.Fail()
@@ -83,10 +75,6 @@ func TestContentPrinterPrintLn(t *testing.T) {
 	p.printLn()
 	expected := "\r\n"
 	got := sb.String()
-	if len(expected) != p.bytesWritten {
-		t.Logf("%d != %d", len(expected), p.bytesWritten)
-		t.Fail()
-	}
 	if got != expected {
 		t.Logf("\n%s\n!=\n%s\nLengths %d != %d", got, expected, len(got), len(expected))
 		t.Fail()
@@ -99,10 +87,6 @@ func TestContentPrinterPrintEscaped(t *testing.T) {
 	p.print(",;\\\n", true)
 	expected := `\,\;\\\n`
 	got := sb.String()
-	if len(expected) != p.bytesWritten {
-		t.Logf("%d != %d", len(expected), p.bytesWritten)
-		t.Fail()
-	}
 	if got != expected {
 		t.Logf("\n%s\n!=\n%s\nLengths %d != %d", got, expected, len(got), len(expected))
 		t.Fail()
@@ -115,10 +99,6 @@ func TestContentPrinterPrintEscapedSemicolon(t *testing.T) {
 	p.print(";", false)
 	expected := ";"
 	got := sb.String()
-	if len(expected) != p.bytesWritten {
-		t.Logf("%d != %d", len(expected), p.bytesWritten)
-		t.Fail()
-	}
 	if got != expected {
 		t.Logf("\n%s\n!=\n%s\nLengths %d != %d", got, expected, len(got), len(expected))
 		t.Fail()
@@ -142,9 +122,6 @@ func TestContentPrinterLongLineError(t *testing.T) {
 	failer := &Failer{failAfter: maxLineLen + 10}
 	p := NewContentPrinter(failer, false)
 	p.print(fmt.Sprintf("%0*d", failer.failAfter+5, 0), true)
-	if p.bytesWritten != failer.failAfter+1 {
-		t.FailNow()
-	}
 	if p.err == nil {
 		t.FailNow()
 	}

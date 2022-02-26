@@ -33,7 +33,7 @@ func (p *ContentPrinter) printLn() {
 	if err == nil {
 		p.currentLineLength = 0
 	} else if p.errorsAreFatal {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 }
 
@@ -49,7 +49,7 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 	doReturn := func() *ContentPrinter {
 		p.err = perror
 		if p.err != nil && p.errorsAreFatal {
-			log.Fatal(p.err)
+			log.Panic(p.err)
 		}
 		return p
 	}

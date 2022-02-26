@@ -50,7 +50,8 @@ var baseURL = func() *url.URL {
 var timezone = func() *time.Location {
 	tz, err := time.LoadLocation("Europe/Oslo")
 	if err != nil {
-		log.Fatal(err)
+		log.Print("Unable to load time zone")
+		panic(err)
 	}
 	return tz
 }()
@@ -126,7 +127,8 @@ var deliverydayRe = func() *regexp.Regexp {
 func dataURL(code *postalCodeT) *url.URL {
 	u, err := url.Parse(fmt.Sprintf("%s/_/component/main/1/leftRegion/1?postCode=%s", baseURL, code))
 	if err != nil {
-		log.Fatal(err)
+		log.Print("Unable to parse URL")
+		panic(err)
 	}
 	return u
 }
@@ -170,7 +172,7 @@ func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenRespons
 	var data postenResponseT
 	err = json.NewDecoder(strings.NewReader(bodyString)).Decode(&data)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("unable to parse JSON: %s", err)
 	}
 
 	now, err := time.Parse(time.RFC1123, resp.Header.Get("date"))
@@ -306,7 +308,7 @@ func printVersion(wr io.Writer) {
 func die(msg interface{}) {
 	printVersion(os.Stderr)
 	fmt.Fprintln(os.Stderr)
-	log.Fatal(msg)
+	log.Panic(msg)
 }
 
 type commandLineArgs struct {

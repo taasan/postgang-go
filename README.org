@@ -1,0 +1,5 @@
+* postgang
+
+  Henter data om når posten kommer fra posten.no og lager en ical-fil.
+  Som så mange andre prosjekt ble den laget for å lære meg et nytt
+  programmeringsspråk.  Løsningen er derfor unødig stor og komplisert.

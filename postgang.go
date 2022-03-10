@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -60,6 +59,14 @@ var version = "development"
 var buildstamp = ""
 var gitCommit = ""
 
+func reverseMap[K comparable, V comparable](m map[K]V) map[V]K {
+	n := make(map[V]K, len(m))
+	for k, v := range m {
+		n[v] = k
+	}
+	return n
+}
+
 var weekdays = map[string]time.Weekday{
 	"mandag":  time.Monday,
 	"tirsdag": time.Tuesday,
@@ -70,15 +77,7 @@ var weekdays = map[string]time.Weekday{
 	"søndag":  time.Sunday,
 }
 
-var weekdayNames = map[time.Weekday]string{
-	time.Monday:    "mandag",
-	time.Tuesday:   "tirsdag",
-	time.Wednesday: "onsdag",
-	time.Thursday:  "torsdag",
-	time.Friday:    "fredag",
-	time.Saturday:  "lørdag",
-	time.Sunday:    "søndag",
-}
+var weekdayNames = reverseMap(weekdays)
 
 var months = map[string]time.Month{
 	"januar":    time.January,
@@ -95,20 +94,7 @@ var months = map[string]time.Month{
 	"desember":  time.December,
 }
 
-var monthNames = map[time.Month]string{
-	time.January:   "januar",
-	time.February:  "februar",
-	time.March:     "mars",
-	time.April:     "april",
-	time.May:       "mai",
-	time.June:      "juni",
-	time.July:      "juli",
-	time.August:    "august",
-	time.September: "september",
-	time.October:   "oktober",
-	time.November:  "november",
-	time.December:  "desember",
-}
+var monthNames = reverseMap(months)
 
 var deliverydayRe = func() *regexp.Regexp {
 	buf := make([]string, 0, len(months))
@@ -393,7 +379,7 @@ func cli(as []string) {
 			if outputDestination, err = os.Create(args.outputPath); err != nil {
 				die(err)
 			}
-			if tmpFile, err = ioutil.TempFile("", "postgang-"); err != nil {
+			if tmpFile, err = os.CreateTemp("", "postgang-"); err != nil {
 				die(err)
 			}
 			wr = tmpFile

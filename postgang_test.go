@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -136,7 +135,7 @@ func TestPrint(t *testing.T) {
 	fixtureName := "test/fixture.ics"
 	icsFixture := readFixture(fixtureName, t)
 	if res != string(icsFixture) {
-		tmp, err := ioutil.TempFile("", "postgang-*.ics")
+		tmp, err := os.CreateTemp("", "postgang-*.ics")
 		if err != nil {
 			t.Fatal(err)
 		}

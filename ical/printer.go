@@ -32,12 +32,16 @@ func NewContentPrinter(wr PrintWriter) *ContentPrinter {
 	}
 }
 
-func (p *ContentPrinter) printLn() {
+func (p *ContentPrinter) printLn() *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	_, err := p.writer.WriteString("\r\n")
 	p.err = err
 	if err == nil {
 		p.currentLineLength = 0
 	}
+	return p
 }
 
 func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {

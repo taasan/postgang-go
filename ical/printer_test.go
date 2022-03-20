@@ -72,7 +72,10 @@ func TestContentPrinterPrintLongLineEmoji(t *testing.T) {
 func TestContentPrinterPrintLn(t *testing.T) {
 	var sb = &strings.Builder{}
 	p := NewContentPrinter(sb)
-	p.printLn()
+	if p != p.printLn() {
+		t.Log("Unexpected return value")
+		t.Fail()
+	}
 	expected := "\r\n"
 	got := sb.String()
 	if got != expected {

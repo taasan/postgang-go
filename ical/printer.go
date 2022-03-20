@@ -107,7 +107,7 @@ func (p *ContentPrinter) Print(content icalContent) *ContentPrinter {
 		return p
 	}
 	for _, field := range content.fields() {
-		p = p.printField(field)
+		p.printField(field)
 		if p.err != nil {
 			return p
 		}

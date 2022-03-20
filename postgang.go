@@ -40,20 +40,20 @@ type deliveryDayT struct {
 const maxPostalCode = 9999
 
 var baseURL = func() *url.URL {
-	u, err := url.Parse("https://www.posten.no/levering-av-post/")
-	if err != nil {
-		log.Fatal(err)
+	if u, err := url.Parse("https://www.posten.no/levering-av-post/"); err != nil {
+		panic(err)
+	} else {
+		return u
 	}
-	return u
 }()
 
 var timezone = func() *time.Location {
-	tz, err := time.LoadLocation("Europe/Oslo")
-	if err != nil {
+	if tz, err := time.LoadLocation("Europe/Oslo"); err != nil {
 		log.Print("Unable to load time zone")
 		panic(err)
+	} else {
+		return tz
 	}
-	return tz
 }()
 
 var version = "development"
@@ -125,77 +125,72 @@ var deliverydayRe = func() *regexp.Regexp {
 }()
 
 func dataURL(code *postalCodeT) *url.URL {
-	u, err := url.Parse(fmt.Sprintf("%s/_/component/main/1/leftRegion/1?postCode=%s", baseURL, code))
-	if err != nil {
+	if u, err := url.Parse(fmt.Sprintf("%s/_/component/main/1/leftRegion/1?postCode=%s", baseURL, code)); err != nil {
 		log.Print("Unable to parse URL")
 		panic(err)
+	} else {
+		return u
 	}
-	return u
 }
 
 func readData(now *time.Time, in io.Reader) (*postenResponseT, *time.Time, error) {
-	bodyString, err := io.ReadAll(in)
-	if err != nil {
+	if bodyString, err := io.ReadAll(in); err != nil {
 		return nil, nil, err
+	} else {
+		var data postenResponseT
+		if err := json.NewDecoder(bytes.NewReader(bodyString)).Decode(&data); err != nil {
+			return nil, nil, err
+		}
+		return &data, now, nil
 	}
-	var data postenResponseT
-	err = json.NewDecoder(bytes.NewReader(bodyString)).Decode(&data)
-	if err != nil {
-		return nil, nil, err
-	}
-	return &data, now, nil
 }
 
 func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenResponseT, *time.Time, error) {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", dataURL(postalCode).String(), http.NoBody)
-	if err != nil {
+	if req, err := http.NewRequest("GET", dataURL(postalCode).String(), http.NoBody); err != nil {
 		return nil, nil, err
-	}
-	req.Header.Add("x-requested-with", "XMLHttpRequest")
+	} else {
+		req.Header.Add("x-requested-with", "XMLHttpRequest")
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, nil, err
+		if resp, err := client.Do(req); err != nil {
+			return nil, nil, err
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				return nil, nil, fmt.Errorf("got HTTP error: %s", resp.Status)
+			}
+			if bodyBytes, err := io.ReadAll(resp.Body); err != nil {
+				return nil, nil, err
+			} else {
+				bodyString := string(bodyBytes)
+				var data postenResponseT
+				if err = json.NewDecoder(strings.NewReader(bodyString)).Decode(&data); err != nil {
+					return nil, nil, fmt.Errorf("unable to parse JSON: %s", err)
+				}
+				var now time.Time
+				if now, err = time.Parse(time.RFC1123, resp.Header.Get("date")); err != nil {
+					log.Println(err)
+					now = time.Now()
+				}
+				now = now.In(timezone)
+				return &data, &now, nil
+			}
+		}
 	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("got HTTP error: %s", resp.Status)
-	}
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-	bodyString := string(bodyBytes)
-
-	var data postenResponseT
-	err = json.NewDecoder(strings.NewReader(bodyString)).Decode(&data)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse JSON: %s", err)
-	}
-
-	now, err := time.Parse(time.RFC1123, resp.Header.Get("date"))
-	if err != nil {
-		log.Println(err)
-		now = time.Now()
-	}
-	now = now.In(timezone)
-	return &data, &now, nil
 }
 
 func parseDeliveryDay(s string, tz *time.Location, postalCode *postalCodeT) *deliveryDayT {
-	match := deliverydayRe.FindStringSubmatch(s)
-	if match == nil {
-		log.Fatalf("No match: %s", s)
-	}
-	dayNum, _ := strconv.Atoi(match[2])
-	return &deliveryDayT{
-		Day:        weekdays[match[1]],
-		DayNum:     dayNum,
-		Month:      months[match[3]],
-		Timezone:   tz,
-		PostalCode: postalCode,
+	if match := deliverydayRe.FindStringSubmatch(s); match == nil {
+		panic(fmt.Sprintf("No match: %s", s))
+	} else {
+		dayNum, _ := strconv.Atoi(match[2])
+		return &deliveryDayT{
+			Day:        weekdays[match[1]],
+			DayNum:     dayNum,
+			Month:      months[match[3]],
+			Timezone:   tz,
+			PostalCode: postalCode,
+		}
 	}
 }
 
@@ -206,12 +201,12 @@ func (day *deliveryDayT) toDate(now *time.Time) *time.Time {
 		year++
 	}
 
-	date := time.Date(year, day.Month, day.DayNum, 0, 0, 0, 0, now.Location())
-	if date.Weekday() != day.Day {
+	if date := time.Date(year, day.Month, day.DayNum, 0, 0, 0, 0, now.Location()); date.Weekday() != day.Day {
 		// Sanity check
-		log.Fatalf("Weekday mismatch: %+v %+v", day, date)
+		panic(fmt.Sprintf("Weekday mismatch: %+v %+v", day, date))
+	} else {
+		return &date
 	}
-	return &date
 }
 
 type calendarT struct {
@@ -264,26 +259,25 @@ func (c *postalCodeT) String() string {
 }
 
 func toPostalCode(s string) (*postalCodeT, error) {
-	x, err := strconv.ParseUint(s, 10, 16)
-	if err != nil {
+	if x, err := strconv.ParseUint(s, 10, 16); err != nil {
 		return nil, err
+	} else {
+		var postalCode postalCodeT
+		if x < 1 || x > maxPostalCode {
+			return &postalCode, fmt.Errorf("invalid postal code: %04d", x)
+		}
+		return &postalCodeT{fmt.Sprintf("%04d", x)}, nil
 	}
-	var postalCode postalCodeT
-	if x < 1 || x > maxPostalCode {
-		return &postalCode, fmt.Errorf("invalid postal code: %04d", x)
-	}
-	return &postalCodeT{fmt.Sprintf("%04d", x)}, nil
 }
 
 func copyFile(sourcePath string, dest io.Writer) error {
-	inputFile, err := os.Open(sourcePath)
-	if err != nil {
+	if inputFile, err := os.Open(sourcePath); err != nil {
 		return fmt.Errorf("couldn't open source file: %s", err)
-	}
-	defer inputFile.Close()
-	_, err = io.Copy(dest, inputFile)
-	if err != nil {
-		return fmt.Errorf("writing failed: %s", err)
+	} else {
+		defer inputFile.Close()
+		if _, err = io.Copy(dest, inputFile); err != nil {
+			return fmt.Errorf("writing failed: %s", err)
+		}
 	}
 	return nil
 }
@@ -297,8 +291,7 @@ func printVersion(wr io.Writer) {
 	printVersionLine(wr, "Build date", buildstamp)
 	printVersionLine(wr, "Version", version)
 	fmt.Fprintln(wr)
-	commit, err := base64.StdEncoding.DecodeString(gitCommit)
-	if err == nil {
+	if commit, err := base64.StdEncoding.DecodeString(gitCommit); err == nil {
 		fmt.Fprint(wr, string(commit))
 	} else {
 		log.Print("Error base64 decoding git commit", err, gitCommit)
@@ -341,116 +334,107 @@ func parseArgs(cmd *flag.FlagSet, a []string) (commandLineArgs, error) {
 	if versionArg {
 		return commandLineArgs{version: true}, nil
 	}
-	postalCode, err := toPostalCode(codeArg)
-	if err != nil {
+	if postalCode, err := toPostalCode(codeArg); err != nil {
 		return commandLineArgs{}, err
-	}
-
-	var doFetch func() (*postenResponseT, *time.Time, error)
-	if inputPathArg != "" {
-		var in *os.File
-		if inputPathArg == "-" {
-			in = os.Stdin
-		} else {
-			in, err = os.Open(inputPathArg)
-			if err != nil {
-				return commandLineArgs{}, err
-			}
-		}
-		var now time.Time
-		if dateArg != "" {
-			now, err = time.Parse("2006-01-02", dateArg)
-			if err != nil {
-				return commandLineArgs{}, err
-			}
-		} else {
-			now = time.Now()
-		}
-		now = now.In(timezone)
-		doFetch = func() (*postenResponseT, *time.Time, error) {
-			return readData(&now, in)
-		}
 	} else {
-		doFetch = func() (*postenResponseT, *time.Time, error) {
-			return fetchData(postalCode, timezone)
+		var doFetch func() (*postenResponseT, *time.Time, error)
+		if inputPathArg != "" {
+			var in *os.File
+			if inputPathArg == "-" {
+				in = os.Stdin
+			} else {
+				if in, err = os.Open(inputPathArg); err != nil {
+					return commandLineArgs{}, err
+				}
+			}
+			var now time.Time
+			if dateArg != "" {
+				if now, err = time.Parse("2006-01-02", dateArg); err != nil {
+					return commandLineArgs{}, err
+				}
+			} else {
+				now = time.Now()
+			}
+			now = now.In(timezone)
+			doFetch = func() (*postenResponseT, *time.Time, error) {
+				return readData(&now, in)
+			}
+		} else {
+			doFetch = func() (*postenResponseT, *time.Time, error) {
+				return fetchData(postalCode, timezone)
+			}
 		}
+		if outputPathArg == "-" {
+			outputPathArg = ""
+		}
+		return commandLineArgs{
+			code:       postalCode,
+			fetch:      doFetch,
+			outputPath: outputPathArg,
+			version:    versionArg,
+			err:        err,
+			hostname:   hostnameArg,
+		}, nil
 	}
-	if outputPathArg == "-" {
-		outputPathArg = ""
-	}
-	return commandLineArgs{
-		code:       postalCode,
-		fetch:      doFetch,
-		outputPath: outputPathArg,
-		version:    versionArg,
-		err:        err,
-		hostname:   hostnameArg,
-	}, nil
 }
 
 func cli(as []string) {
-	args, err := parseArgs(flag.CommandLine, as)
-	if err != nil {
+	if args, err := parseArgs(flag.CommandLine, as); err != nil {
 		die(err)
-	}
-	if args.version {
-		printVersion(os.Stdout)
-		os.Exit(0)
-	}
-	wr := os.Stdout
-	ok := false
-	if args.outputPath != "" {
-		var tmpFile, outputDestination *os.File
-		outputDestination, err = os.Create(args.outputPath)
-		if err != nil {
-			die(err)
-		}
-		tmpFile, err = ioutil.TempFile("", "postgang-")
-		if err != nil {
-			die(err)
-		}
-		wr = tmpFile
-		defer func() {
-			if ok {
-				err = copyFile(tmpFile.Name(), outputDestination)
-				if err != nil {
-					die(err)
-				}
-			}
-			os.Remove(tmpFile.Name())
-		}()
-	}
-	var response *postenResponseT
-	var now *time.Time
-	response, now, err = args.fetch()
-	if err != nil {
-		die(err)
-	}
-	if response.IsStreetAddressReq {
-		die(fmt.Sprintf("Street address is required %+v", response))
-	}
-	var hostname string
-	if args.hostname != "" {
-		hostname = args.hostname
 	} else {
-		hostname, err = os.Hostname()
-		if err != nil {
-			hostname = err.Error()
+		if args.version {
+			printVersion(os.Stdout)
+			os.Exit(0)
 		}
-	}
-	calendar := toCalendarT(now, response, hostname, args.code)
-	if len(calendar.dates) == 0 {
-		die(fmt.Sprintf("No delivery days found, check postal code: %s", args.code))
-	}
-	buf := bufio.NewWriter(wr)
-	defer buf.Flush()
+		wr := os.Stdout
+		ok := false
+		if args.outputPath != "" {
+			var tmpFile, outputDestination *os.File
+			if outputDestination, err = os.Create(args.outputPath); err != nil {
+				die(err)
+			}
+			if tmpFile, err = ioutil.TempFile("", "postgang-"); err != nil {
+				die(err)
+			}
+			wr = tmpFile
+			defer func() {
+				if ok {
+					if err = copyFile(tmpFile.Name(), outputDestination); err != nil {
+						die(err)
+					}
+				}
+				os.Remove(tmpFile.Name())
+			}()
+		}
+		var response *postenResponseT
+		var now *time.Time
+		if response, now, err = args.fetch(); err != nil {
+			die(err)
+		}
+		if response.IsStreetAddressReq {
+			die(fmt.Sprintf("Street address is required %+v", response))
+		}
+		var hostname string
+		if args.hostname != "" {
+			hostname = args.hostname
+		} else {
+			if hostname, err = os.Hostname(); err != nil {
+				hostname = err.Error()
+			}
+		}
+		calendar := toCalendarT(now, response, hostname, args.code)
+		if len(calendar.dates) == 0 {
+			die(fmt.Sprintf("No delivery days found, check postal code: %s", args.code))
+		}
+		buf := bufio.NewWriter(wr)
+		defer buf.Flush()
 
-	p := ical.NewContentPrinter(buf).Print(toVCalendar(calendar))
-	err = p.Error()
-	if err != nil {
-		die(err)
+		p := ical.NewContentPrinter(buf).Print(toVCalendar(calendar))
+		if err = p.Error(); err != nil {
+			die(err)
+		}
+		ok = true // Used in closure
 	}
-	ok = true // Used in closure
 }
 
 func main() {

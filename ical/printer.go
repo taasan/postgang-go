@@ -7,11 +7,12 @@ import (
 	"strings"
 )
 
+const maxLineLen = 75
+
 type ContentPrinter struct {
 	writer            PrintWriter
 	currentLineLength int
 	err               error
-	errorsAreFatal    bool
 }
 
 type PrintWriter interface {
@@ -23,18 +24,24 @@ func (p *ContentPrinter) Error() error {
 	return p.err
 }
 
-func NewContentPrinter(wr PrintWriter, errorsAreFatal bool) *ContentPrinter {
-	return &ContentPrinter{writer: wr, errorsAreFatal: errorsAreFatal}
+func NewContentPrinter(wr PrintWriter) *ContentPrinter {
+	return &ContentPrinter{
+		writer:            wr,
+		currentLineLength: 0,
+		err:               nil,
+	}
 }
 
-func (p *ContentPrinter) printLn() {
+func (p *ContentPrinter) printLn() *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	_, err := p.writer.WriteString("\r\n")
 	p.err = err
 	if err == nil {
 		p.currentLineLength = 0
-	} else if p.errorsAreFatal {
-		log.Panic(err)
 	}
+	return p
 }
 
 func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
@@ -42,40 +49,30 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 		return p
 	}
 	const CRLFS = "\r\n "
-	bytesWritten := 0
 	reader := strings.NewReader(value)
 	var n int
 	var perror error
 	doReturn := func() *ContentPrinter {
 		p.err = perror
-		if p.err != nil && p.errorsAreFatal {
-			log.Panic(p.err)
-		}
 		return p
 	}
 	for perror == nil {
-		if r, bytesRead, readErr := reader.ReadRune(); readErr != nil {
+		if r, _, readErr := reader.ReadRune(); readErr != nil {
 			return doReturn()
 		} else {
-			var toPrint = ""
+			var toPrint string
 			if escape && (r == '\\' || r == ';' || r == ',') {
 				toPrint = fmt.Sprintf("\\%c", r)
-				bytesRead = len(toPrint)
 			} else if r == '\n' {
 				toPrint = "\\n"
-				bytesRead = len(toPrint)
+			} else {
+				toPrint = string(r)
 			}
-			if bytesRead+p.currentLineLength > maxLineLen {
-				n, perror = p.writer.WriteString(CRLFS)
-				bytesWritten += n
+			if len(toPrint)+p.currentLineLength > maxLineLen {
+				_, perror = p.writer.WriteString(CRLFS)
 				p.currentLineLength = 1
 			}
-			if toPrint == "" {
-				n, perror = p.writer.WriteRune(r)
-			} else {
-				n, perror = p.writer.WriteString(toPrint)
-			}
-			bytesWritten += n
+			n, perror = p.writer.WriteString(toPrint)
 			p.currentLineLength += n
 		}
 	}
@@ -83,6 +80,9 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 }
 
 func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	p.print(a.Name, false).
 		print("=", false).
 		print(a.Value, true)
@@ -90,6 +90,9 @@ func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
 }
 
 func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	p.print(f.name, false)
 	for _, a := range f.attributes {
 		p.print(";", false).
@@ -102,6 +105,9 @@ func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
 }
 
 func (p *ContentPrinter) Print(content icalContent) *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	for _, field := range content.fields() {
 		p = p.printField(field)
 		if p.err != nil {
@@ -113,6 +119,9 @@ func (p *ContentPrinter) Print(content icalContent) *ContentPrinter {
 
 func (section *Section) String() string {
 	var sb = &strings.Builder{}
-	NewContentPrinter(sb, true).Print(section)
+	p := NewContentPrinter(sb).Print(section)
+	if p.err != nil {
+		log.Panic(p.err)
+	}
 	return sb.String()
 }

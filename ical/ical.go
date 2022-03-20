@@ -1,12 +1,9 @@
 package ical
 
 import (
-	"fmt"
 	"net/url"
 	"time"
 )
-
-const maxLineLen = 75
 
 type VEvent struct {
 	uid     string
@@ -79,7 +76,7 @@ func dateAttribute() *Attribute {
 func field(name, value string, attributes ...*Attribute) *icalField {
 	return &icalField{
 		name:       name,
-		value:      fmt.Sprint(value),
+		value:      value,
 		attributes: attributes,
 	}
 }

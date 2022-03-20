@@ -134,7 +134,7 @@ func dataURL(code *postalCodeT) *url.URL {
 }
 
 func readData(now *time.Time, in io.Reader) (*postenResponseT, *time.Time, error) {
-	bodyString, err := ioutil.ReadAll(in)
+	bodyString, err := io.ReadAll(in)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -148,7 +148,7 @@ func readData(now *time.Time, in io.Reader) (*postenResponseT, *time.Time, error
 
 func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenResponseT, *time.Time, error) {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", dataURL(postalCode).String(), nil)
+	req, err := http.NewRequest("GET", dataURL(postalCode).String(), http.NoBody)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -445,7 +445,7 @@ func cli(as []string) {
 	buf := bufio.NewWriter(wr)
 	defer buf.Flush()
 
-	p := ical.NewContentPrinter(buf, true).Print(toVCalendar(calendar))
+	p := ical.NewContentPrinter(buf).Print(toVCalendar(calendar))
 	err = p.Error()
 	if err != nil {
 		die(err)

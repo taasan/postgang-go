@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-const maxLineLen = 75
-
 type VEvent struct {
 	uid     string
 	url     *url.URL

@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const maxLineLen = 75
+
 type ContentPrinter struct {
 	writer            PrintWriter
 	currentLineLength int

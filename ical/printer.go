@@ -80,6 +80,9 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 }
 
 func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	p.print(a.Name, false).
 		print("=", false).
 		print(a.Value, true)
@@ -87,6 +90,9 @@ func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
 }
 
 func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	p.print(f.name, false)
 	for _, a := range f.attributes {
 		p.print(";", false).
@@ -99,6 +105,9 @@ func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
 }
 
 func (p *ContentPrinter) Print(content icalContent) *ContentPrinter {
+	if p.err != nil {
+		return p
+	}
 	for _, field := range content.fields() {
 		p = p.printField(field)
 		if p.err != nil {

@@ -44,7 +44,6 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 		return p
 	}
 	const CRLFS = "\r\n "
-	bytesWritten := 0
 	reader := strings.NewReader(value)
 	var n int
 	var perror error
@@ -56,28 +55,22 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 		return p
 	}
 	for perror == nil {
-		if r, bytesRead, readErr := reader.ReadRune(); readErr != nil {
+		if r, _, readErr := reader.ReadRune(); readErr != nil {
 			return doReturn()
 		} else {
-			var toPrint = ""
+			var toPrint string
 			if escape && (r == '\\' || r == ';' || r == ',') {
 				toPrint = fmt.Sprintf("\\%c", r)
-				bytesRead = len(toPrint)
 			} else if r == '\n' {
 				toPrint = "\\n"
-				bytesRead = len(toPrint)
+			} else {
+				toPrint = string(r)
 			}
-			if bytesRead+p.currentLineLength > maxLineLen {
-				n, perror = p.writer.WriteString(CRLFS)
-				bytesWritten += n
+			if len(toPrint)+p.currentLineLength > maxLineLen {
+				_, perror = p.writer.WriteString(CRLFS)
 				p.currentLineLength = 1
 			}
-			if toPrint == "" {
-				n, perror = p.writer.WriteRune(r)
-			} else {
-				n, perror = p.writer.WriteString(toPrint)
-			}
-			bytesWritten += n
+			n, perror = p.writer.WriteString(toPrint)
 			p.currentLineLength += n
 		}
 	}

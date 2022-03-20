@@ -25,7 +25,11 @@ func (p *ContentPrinter) Error() error {
 }
 
 func NewContentPrinter(wr PrintWriter) *ContentPrinter {
-	return &ContentPrinter{writer: wr}
+	return &ContentPrinter{
+		writer:            wr,
+		currentLineLength: 0,
+		err:               nil,
+	}
 }
 
 func (p *ContentPrinter) printLn() {

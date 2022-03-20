@@ -111,12 +111,12 @@ var monthNames = map[time.Month]string{
 }
 
 var deliverydayRe = func() *regexp.Regexp {
-	buf := make([]string, len(months))
+	buf := make([]string, 0, len(months))
 	for v := range months {
 		buf = append(buf, v)
 	}
 	months := strings.Join(buf, "|")
-	buf = make([]string, len(weekdayNames))
+	buf = make([]string, 0, len(weekdayNames))
 	for v := range weekdays {
 		buf = append(buf, v)
 	}
@@ -165,7 +165,7 @@ func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenRespons
 				bodyString := string(bodyBytes)
 				var data postenResponseT
 				if err = json.NewDecoder(strings.NewReader(bodyString)).Decode(&data); err != nil {
-					return nil, nil, fmt.Errorf("unable to parse JSON: %s", err)
+					return nil, nil, fmt.Errorf("unable to parse JSON: %w", err)
 				}
 				var now time.Time
 				if now, err = time.Parse(time.RFC1123, resp.Header.Get("date")); err != nil {
@@ -272,11 +272,11 @@ func toPostalCode(s string) (*postalCodeT, error) {
 
 func copyFile(sourcePath string, dest io.Writer) error {
 	if inputFile, err := os.Open(sourcePath); err != nil {
-		return fmt.Errorf("couldn't open source file: %s", err)
+		return fmt.Errorf("couldn't open source file: %w", err)
 	} else {
 		defer inputFile.Close()
 		if _, err = io.Copy(dest, inputFile); err != nil {
-			return fmt.Errorf("writing failed: %s", err)
+			return fmt.Errorf("writing failed: %w", err)
 		}
 	}
 	return nil

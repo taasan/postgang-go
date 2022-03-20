@@ -69,6 +69,7 @@ linters:
     - dogsled
     - dupl
     - errcheck
+    - errorlint
     - exportloopref
     - exhaustive
     - funlen
@@ -85,6 +86,7 @@ linters:
     - govet
     - ineffassign
     - lll
+    - makezero
     - misspell
     - nakedret
     # - noctx

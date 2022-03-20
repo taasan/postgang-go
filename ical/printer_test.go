@@ -37,7 +37,7 @@ func TestContentPrinterPrintWithErrSet(t *testing.T) {
 	err := errors.New("Test")
 	p.err = err
 	p = p.print("A", true)
-	if p.err != err {
+	if !errors.Is(p.err, err) {
 		t.Fail()
 	}
 	if sb.String() != "" {
@@ -114,7 +114,7 @@ func TestContentPrinterError(t *testing.T) {
 	if p.err == nil {
 		t.FailNow()
 	}
-	if p.err != p.Error() {
+	if !errors.Is(p.err, p.Error()) {
 		t.Log(p.err)
 		t.Log(p.Error())
 		t.Fail()
@@ -128,7 +128,7 @@ func TestContentPrinterLongLineError(t *testing.T) {
 	if p.err == nil {
 		t.FailNow()
 	}
-	if p.err != p.Error() {
+	if !errors.Is(p.err, p.Error()) {
 		t.Log(p.err)
 		t.Log(p.Error())
 		t.Fail()

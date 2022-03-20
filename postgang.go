@@ -445,7 +445,7 @@ func cli(as []string) {
 	buf := bufio.NewWriter(wr)
 	defer buf.Flush()
 
-	p := ical.NewContentPrinter(buf, true).Print(toVCalendar(calendar))
+	p := ical.NewContentPrinter(buf).Print(toVCalendar(calendar))
 	err = p.Error()
 	if err != nil {
 		die(err)

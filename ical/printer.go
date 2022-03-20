@@ -13,7 +13,6 @@ type ContentPrinter struct {
 	writer            PrintWriter
 	currentLineLength int
 	err               error
-	errorsAreFatal    bool
 }
 
 type PrintWriter interface {
@@ -25,8 +24,8 @@ func (p *ContentPrinter) Error() error {
 	return p.err
 }
 
-func NewContentPrinter(wr PrintWriter, errorsAreFatal bool) *ContentPrinter {
-	return &ContentPrinter{writer: wr, errorsAreFatal: errorsAreFatal}
+func NewContentPrinter(wr PrintWriter) *ContentPrinter {
+	return &ContentPrinter{writer: wr}
 }
 
 func (p *ContentPrinter) printLn() {
@@ -34,8 +33,6 @@ func (p *ContentPrinter) printLn() {
 	p.err = err
 	if err == nil {
 		p.currentLineLength = 0
-	} else if p.errorsAreFatal {
-		log.Panic(err)
 	}
 }
 
@@ -49,9 +46,6 @@ func (p *ContentPrinter) print(value string, escape bool) *ContentPrinter {
 	var perror error
 	doReturn := func() *ContentPrinter {
 		p.err = perror
-		if p.err != nil && p.errorsAreFatal {
-			log.Panic(p.err)
-		}
 		return p
 	}
 	for perror == nil {
@@ -108,6 +102,9 @@ func (p *ContentPrinter) Print(content icalContent) *ContentPrinter {
 
 func (section *Section) String() string {
 	var sb = &strings.Builder{}
-	NewContentPrinter(sb, true).Print(section)
+	p := NewContentPrinter(sb).Print(section)
+	if p.err != nil {
+		log.Panic(p.err)
+	}
 	return sb.String()
 }

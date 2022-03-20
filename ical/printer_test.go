@@ -33,7 +33,7 @@ func (wr *Failer) WriteRune(c rune) (int, error) {
 
 func TestContentPrinterPrintWithErrSet(t *testing.T) {
 	var sb = &strings.Builder{}
-	p := NewContentPrinter(sb, false)
+	p := NewContentPrinter(sb)
 	err := errors.New("Test")
 	p.err = err
 	p = p.print("A", true)
@@ -48,7 +48,7 @@ func TestContentPrinterPrintWithErrSet(t *testing.T) {
 // ☣️
 func TestContentPrinterPrintLongLine(t *testing.T) {
 	var sb = &strings.Builder{}
-	p := NewContentPrinter(sb, false)
+	p := NewContentPrinter(sb)
 	p.print(fmt.Sprintf("%0*d", maxLineLen+3, 0), true)
 	expected := fmt.Sprintf("%0*d\r\n 000", maxLineLen, 0)
 	got := sb.String()
@@ -59,7 +59,7 @@ func TestContentPrinterPrintLongLine(t *testing.T) {
 }
 func TestContentPrinterPrintLongLineEmoji(t *testing.T) {
 	var sb = &strings.Builder{}
-	p := NewContentPrinter(sb, false)
+	p := NewContentPrinter(sb)
 	p.print("A☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️", true)
 	expected := "A☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️☣️\r\n ☣️☣️☣️☣️☣️☣️"
 	got := sb.String()
@@ -71,7 +71,7 @@ func TestContentPrinterPrintLongLineEmoji(t *testing.T) {
 
 func TestContentPrinterPrintLn(t *testing.T) {
 	var sb = &strings.Builder{}
-	p := NewContentPrinter(sb, false)
+	p := NewContentPrinter(sb)
 	p.printLn()
 	expected := "\r\n"
 	got := sb.String()
@@ -83,7 +83,7 @@ func TestContentPrinterPrintLn(t *testing.T) {
 
 func TestContentPrinterPrintEscaped(t *testing.T) {
 	var sb = &strings.Builder{}
-	p := NewContentPrinter(sb, false)
+	p := NewContentPrinter(sb)
 	p.print(",;\\\n", true)
 	expected := `\,\;\\\n`
 	got := sb.String()
@@ -95,7 +95,7 @@ func TestContentPrinterPrintEscaped(t *testing.T) {
 
 func TestContentPrinterPrintEscapedSemicolon(t *testing.T) {
 	var sb = &strings.Builder{}
-	p := NewContentPrinter(sb, false)
+	p := NewContentPrinter(sb)
 	p.print(";", false)
 	expected := ";"
 	got := sb.String()
@@ -106,7 +106,7 @@ func TestContentPrinterPrintEscapedSemicolon(t *testing.T) {
 }
 
 func TestContentPrinterError(t *testing.T) {
-	p := NewContentPrinter(&Failer{}, false)
+	p := NewContentPrinter(&Failer{})
 	p.print("asdas", false)
 	if p.err == nil {
 		t.FailNow()
@@ -120,7 +120,7 @@ func TestContentPrinterError(t *testing.T) {
 
 func TestContentPrinterLongLineError(t *testing.T) {
 	failer := &Failer{failAfter: maxLineLen + 10}
-	p := NewContentPrinter(failer, false)
+	p := NewContentPrinter(failer)
 	p.print(fmt.Sprintf("%0*d", failer.failAfter+5, 0), true)
 	if p.err == nil {
 		t.FailNow()
@@ -152,7 +152,7 @@ func sectionFixture() *Section {
 
 func TestContentPrintWithError(t *testing.T) {
 	failer := &Failer{}
-	p := NewContentPrinter(failer, false)
+	p := NewContentPrinter(failer)
 	p.Print(sectionFixture())
 	if p.Error() == nil {
 		t.Fail()

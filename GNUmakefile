@@ -1,6 +1,7 @@
 GO ?= go
+GOROOT := $(shell $(GO) env GOROOT)
+export PATH := $(GOROOT)/bin:$(PATH)
 GOFLAGS ?= -v -trimpath -ldflags="$(VERSION_FLAGS)"
-GOLINT ?= golint -set_exit_status -min_confidence 0
 SOURCES := $(wildcard *.go)
 VERSION := $(shell git describe --always --dirty)
 GIT_BRANCH := $(shell git branch --show-current)
@@ -22,7 +23,7 @@ test:
 
 .PHONY: lint
 lint:
-	$(GOLINT)
+	$(GO) vet ./...
 	set -e;\
 	output=$$(git ls-files -z '*.go' | xargs -0 gofmt -d);\
 	if [ -n "$$output" ]; then \

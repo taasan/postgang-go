@@ -83,10 +83,9 @@ func (p *ContentPrinter) printAttribute(a *Attribute) *ContentPrinter {
 	if p.err != nil {
 		return p
 	}
-	p.print(a.Name, false).
+	return p.print(a.Name, false).
 		print("=", false).
 		print(a.Value, true)
-	return p
 }
 
 func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
@@ -98,10 +97,9 @@ func (p *ContentPrinter) printField(f *icalField) *ContentPrinter {
 		p.print(";", false).
 			printAttribute(a)
 	}
-	p.print(":", false).
+	return p.print(":", false).
 		print(f.value, true).
 		printLn()
-	return p
 }
 
 func (p *ContentPrinter) Print(content icalContent) *ContentPrinter {

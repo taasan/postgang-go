@@ -148,7 +148,7 @@ func readData(now *time.Time, in io.Reader) (*postenResponseT, *time.Time, error
 
 func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenResponseT, *time.Time, error) {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", dataURL(postalCode).String(), nil)
+	req, err := http.NewRequest("GET", dataURL(postalCode).String(), http.NoBody)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -134,7 +134,7 @@ func dataURL(code *postalCodeT) *url.URL {
 }
 
 func readData(now *time.Time, in io.Reader) (*postenResponseT, *time.Time, error) {
-	bodyString, err := ioutil.ReadAll(in)
+	bodyString, err := io.ReadAll(in)
 	if err != nil {
 		return nil, nil, err
 	}

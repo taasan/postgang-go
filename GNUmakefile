@@ -1,6 +1,7 @@
 GO ?= go
 GOROOT := $(shell $(GO) env GOROOT)
 export PATH := $(GOROOT)/bin:$(PATH)
+export CGO_ENABLED=0
 GOFLAGS ?= -v -trimpath -ldflags="$(VERSION_FLAGS)"
 SOURCES := $(wildcard *.go)
 VERSION := $(shell git describe --always --dirty)

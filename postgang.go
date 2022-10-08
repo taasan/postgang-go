@@ -284,7 +284,7 @@ func printVersion(wr io.Writer) {
 	}
 }
 
-func die(msg interface{}) {
+func die(msg any) {
 	printVersion(os.Stderr)
 	fmt.Fprintln(os.Stderr)
 	log.Panic(msg)

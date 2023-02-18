@@ -111,7 +111,7 @@ var deliverydayRe = func() *regexp.Regexp {
 }()
 
 func dataURL(code *postalCodeT) *url.URL {
-	if u, err := url.Parse(fmt.Sprintf("%s/_/component/main/1/leftRegion/1?postCode=%s", baseURL, code)); err != nil {
+	if u, err := url.Parse(fmt.Sprintf("%s/_/component/main/1/leftRegion/9?postCode=%s", baseURL, code)); err != nil {
 		log.Print("Unable to parse URL")
 		panic(err)
 	} else {

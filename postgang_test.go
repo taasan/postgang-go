@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -30,24 +31,8 @@ func TestFromWeekday(t *testing.T) {
 	}
 }
 
-func TestFromMonthName(t *testing.T) {
-	for k, v := range months {
-		if k != monthNames[v] {
-			t.Fatalf("%s => %s", k, v)
-		}
-	}
-}
-
-func TestFromMonth(t *testing.T) {
-	for k, v := range monthNames {
-		if k != months[v] {
-			t.Fatalf("%s => %s", k, v)
-		}
-	}
-}
-
 func now() *time.Time {
-	return calendarTFixture().dates[0]
+	return calendarTFixture().dates[0].time
 }
 
 func prodID() string {
@@ -62,19 +47,13 @@ func postalCode() *postalCodeT {
 //go:embed test/fixture*
 var fixtures embed.FS
 
-func dataFixture() *postenResponseT {
-	return &postenResponseT{
-		NextDeliveryDays: []string{
-			"i dag tirsdag 28. desember",
-			"i morgen onsdag 29. desember",
-			"torsdag 30. desember",
-			"fredag 31. desember",
-			"lørdag 1. januar",
-			"søndag 2. januar",
-			"mandag 3. januar",
-		},
-		IsStreetAddressReq: false,
+func dataFixture(t *testing.T) *postenResponseT {
+	bs := readFixture("test/fixture.json", t)
+	var data postenResponseT
+	if err := json.NewDecoder(bytes.NewReader(bs)).Decode(&data); err != nil {
+		return nil
 	}
+	return &data
 }
 
 func readFixture(name string, t *testing.T) []byte {
@@ -88,7 +67,7 @@ func readFixture(name string, t *testing.T) []byte {
 func TestReadData(t *testing.T) {
 	bs := readFixture("test/fixture.json", t)
 	p, _, _ := readData(now(), bytes.NewReader(bs))
-	expected := dataFixture()
+	expected := dataFixture(t)
 	if !reflect.DeepEqual(p, expected) {
 		t.Fatalf("\n%+v\n\n!=\n\n%+v", p, expected)
 	}
@@ -101,17 +80,17 @@ func addDay(t *time.Time, days int) *time.Time {
 
 func calendarTFixture() *calendarT {
 	now := time.Date(2021, 12, 28, 0, 0, 0, 0, time.UTC)
-	dates := []*time.Time{
-		&now,
-		addDay(&now, 1),
-		addDay(&now, 2),
-		addDay(&now, 3),
-		addDay(&now, 4),
-		addDay(&now, 5),
-		addDay(&now, 6),
+	dates := []*CivilTime{
+		{time: &now},
+		{time: addDay(&now, 1)},
+		{time: addDay(&now, 2)},
+		{time: addDay(&now, 3)},
+		{time: addDay(&now, 4)},
+		{time: addDay(&now, 5)},
+		{time: addDay(&now, 6)},
 	}
 	return &calendarT{
-		now:      dates[0],
+		now:      dates[0].time,
 		prodID:   prodID(),
 		dates:    dates,
 		hostname: "test",
@@ -120,7 +99,7 @@ func calendarTFixture() *calendarT {
 }
 
 func TestToCalendarT(t *testing.T) {
-	resp, now := dataFixture(), now()
+	resp, now := dataFixture(t), now()
 	cal := calendarTFixture()
 	calendar := toCalendarT(now, resp, cal.hostname, postalCode())
 	expectedCalendar := cal
@@ -227,7 +206,7 @@ func TestCli(t *testing.T) {
 	}
 	os.Stdout = stdout.out
 	var outputBuf bytes.Buffer
-	cli([]string{"--code", postalCode().code, "--input=-", "--date", now().Format("2006-01-02"), "--hostname", "test"})
+	cli([]string{"--code", postalCode().code, "--input=-", "--date", now().Format(time.DateOnly), "--hostname", "test"})
 	os.Stdin = stdin.orig
 	stdout.out.Close()
 	_, err = io.Copy(&outputBuf, stdout.in)

@@ -10,6 +10,6 @@ repos:
     - id: check-added-large-files
 
 - repo: https://github.com/golangci/golangci-lint
-  rev: v1.50.0
+  rev: v1.52.2
   hooks:
     - id: golangci-lint

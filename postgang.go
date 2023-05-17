@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,17 +22,26 @@ import (
 	"github.com/taasan/postgang/ical"
 )
 
-type postenResponseT struct {
-	NextDeliveryDays   []string `json:"nextDeliveryDays"`
-	IsStreetAddressReq bool     `json:"isStreetAddressReq"`
+type CivilTime struct {
+	time *time.Time
 }
 
-type deliveryDayT struct {
-	PostalCode *postalCodeT
-	Day        time.Weekday
-	DayNum     int
-	Month      time.Month
-	Timezone   *time.Location
+func (c *CivilTime) UnmarshalJSON(b []byte) error {
+	value := strings.Trim(string(b), `"`)
+	if value == "" || value == "null" {
+		return nil
+	}
+
+	t, err := time.Parse(time.DateOnly, value)
+	if err != nil {
+		return err
+	}
+	*c = CivilTime{time: &t}
+	return nil
+}
+
+type postenResponseT struct {
+	DeliveryDates []*CivilTime `json:"delivery_dates"`
 }
 
 const maxPostalCode = 9999
@@ -79,39 +87,8 @@ var weekdays = map[string]time.Weekday{
 
 var weekdayNames = reverseMap(weekdays)
 
-var months = map[string]time.Month{
-	"januar":    time.January,
-	"februar":   time.February,
-	"mars":      time.March,
-	"april":     time.April,
-	"mai":       time.May,
-	"juni":      time.June,
-	"juli":      time.July,
-	"august":    time.August,
-	"september": time.September,
-	"oktober":   time.October,
-	"november":  time.November,
-	"desember":  time.December,
-}
-
-var monthNames = reverseMap(months)
-
-var deliverydayRe = func() *regexp.Regexp {
-	buf := make([]string, 0, len(months))
-	for v := range months {
-		buf = append(buf, v)
-	}
-	months := strings.Join(buf, "|")
-	buf = make([]string, 0, len(weekdayNames))
-	for v := range weekdays {
-		buf = append(buf, v)
-	}
-	days := strings.Join(buf, "|")
-	return regexp.MustCompile(fmt.Sprintf(`^(?:i (?:dag|morgen) )?(?P<dayname>%s) (?P<day>\d+)\. (?P<month>%s)$`, days, months))
-}()
-
 func dataURL(code *postalCodeT) *url.URL {
-	if u, err := url.Parse(fmt.Sprintf("%s/_/component/main/1/leftRegion/11?postCode=%s", baseURL, code)); err != nil {
+	if u, err := url.Parse(fmt.Sprintf("https://api.bring.com/address/api/no/postal-codes/%s/mailbox-delivery-dates", code)); err != nil {
 		log.Print("Unable to parse URL")
 		panic(err)
 	} else {
@@ -131,12 +108,18 @@ func readData(now *time.Time, in io.Reader) (*postenResponseT, *time.Time, error
 	}
 }
 
-func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenResponseT, *time.Time, error) {
+type credentials struct {
+	uid string
+	key string
+}
+
+func fetchData(postalCode *postalCodeT, timezone *time.Location, creds *credentials) (*postenResponseT, *time.Time, error) {
 	client := &http.Client{}
 	if req, err := http.NewRequest("GET", dataURL(postalCode).String(), http.NoBody); err != nil {
 		return nil, nil, err
 	} else {
-		req.Header.Add("x-requested-with", "XMLHttpRequest")
+		req.Header.Add("X-Mybring-API-Key", creds.key)
+		req.Header.Add("X-Mybring-API-Uid", creds.uid)
 
 		if resp, err := client.Do(req); err != nil {
 			return nil, nil, err
@@ -165,51 +148,17 @@ func fetchData(postalCode *postalCodeT, timezone *time.Location) (*postenRespons
 	}
 }
 
-func parseDeliveryDay(s string, tz *time.Location, postalCode *postalCodeT) *deliveryDayT {
-	if match := deliverydayRe.FindStringSubmatch(s); match == nil {
-		panic(fmt.Sprintf("No match: %s", s))
-	} else {
-		dayNum, _ := strconv.Atoi(match[2])
-		return &deliveryDayT{
-			Day:        weekdays[match[1]],
-			DayNum:     dayNum,
-			Month:      months[match[3]],
-			Timezone:   tz,
-			PostalCode: postalCode,
-		}
-	}
-}
-
-func (day *deliveryDayT) toDate(now *time.Time) *time.Time {
-	year := now.Year()
-	month := now.Month()
-	if month == time.December && day.Month != month {
-		year++
-	}
-
-	if date := time.Date(year, day.Month, day.DayNum, 0, 0, 0, 0, now.Location()); date.Weekday() != day.Day {
-		// Sanity check
-		panic(fmt.Sprintf("Weekday mismatch: %+v %+v", day, date))
-	} else {
-		return &date
-	}
-}
-
 type calendarT struct {
 	now      *time.Time
-	dates    []*time.Time
+	dates    []*CivilTime
 	prodID   string
 	hostname string
 	code     *postalCodeT
 }
 
 func toCalendarT(now *time.Time, response *postenResponseT, hostname string, postalCode *postalCodeT) *calendarT {
-	buf := make([]*time.Time, len(response.NextDeliveryDays))
-	for i, x := range response.NextDeliveryDays {
-		buf[i] = parseDeliveryDay(x, now.Location(), postalCode).toDate(now)
-	}
 	return &calendarT{
-		dates:    buf,
+		dates:    response.DeliveryDates,
 		now:      now,
 		prodID:   fmt.Sprintf("-//Aasan//Aasan Go Postgang %s@%s//EN", postalCode, version),
 		hostname: hostname,
@@ -225,14 +174,14 @@ func toVCalendar(cal *calendarT) *ical.Section {
 	return ical.Calendar(ical.NewVCalendar(cal.prodID, cal.now, buf...))
 }
 
-func toVEvent(date *time.Time, cal *calendarT) *ical.VEvent {
-	dayName := weekdayNames[date.Weekday()]
-	dayNum := date.Day()
+func toVEvent(date *CivilTime, cal *calendarT) *ical.VEvent {
+	dayName := weekdayNames[date.time.Weekday()]
+	dayNum := date.time.Day()
 	return ical.NewVEvent(
-		fmt.Sprintf("postgang-%s@%s", date.Format("20060102"), cal.hostname),
+		fmt.Sprintf("postgang-%s@%s", date.time.Format("20060102"), cal.hostname),
 		baseURL,
 		fmt.Sprintf("%s: Posten kommer %s %d.", cal.code, dayName, dayNum),
-		date,
+		date.time,
 	)
 }
 
@@ -335,7 +284,7 @@ func parseArgs(cmd *flag.FlagSet, a []string) (commandLineArgs, error) {
 			}
 			var now time.Time
 			if dateArg != "" {
-				if now, err = time.Parse("2006-01-02", dateArg); err != nil {
+				if now, err = time.Parse(time.DateOnly, dateArg); err != nil {
 					return commandLineArgs{}, err
 				}
 			} else {
@@ -347,7 +296,16 @@ func parseArgs(cmd *flag.FlagSet, a []string) (commandLineArgs, error) {
 			}
 		} else {
 			doFetch = func() (*postenResponseT, *time.Time, error) {
-				return fetchData(postalCode, timezone)
+				uid := os.Getenv("POSTGANG_API_UID")
+				if uid == "" {
+					return nil, nil, fmt.Errorf("POSTGANG_API_UID not set")
+				}
+				key := os.Getenv("POSTGANG_API_KEY")
+				if key == "" {
+					return nil, nil, fmt.Errorf("POSTGANG_API_KEY not set")
+				}
+				creds := &credentials{uid, key}
+				return fetchData(postalCode, timezone, creds)
 			}
 		}
 		if outputPathArg == "-" {
@@ -396,9 +354,6 @@ func cli(as []string) {
 		var now *time.Time
 		if response, now, err = args.fetch(); err != nil {
 			die(err)
-		}
-		if response.IsStreetAddressReq {
-			die(fmt.Sprintf("Street address is required %+v", response))
 		}
 		var hostname string
 		if args.hostname != "" {
